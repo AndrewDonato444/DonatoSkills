@@ -1,0 +1,582 @@
+---
+name: social-media
+description: Plan, schedule, and publish social media content using Buffer. Use this skill when the user wants to schedule posts, plan a content calendar, publish to social platforms (Instagram, TikTok, Twitter/X, LinkedIn, Facebook, YouTube, Threads, Bluesky, Mastodon), manage their Buffer queue, check post analytics, or repurpose content across platforms. Also trigger when the user says "post this," "schedule this," "publish," "content calendar," "social media plan," or references Buffer directly.
+---
+
+# Social Media Planner & Publisher
+
+Plan, schedule, and publish social media content via [Buffer](https://buffer.com). This skill handles everything after content is created — captions, hashtags, scheduling, cross-platform adaptation, and analytics.
+
+## How This Works
+
+Buffer is a social media management platform with a **GraphQL API** for scheduling and publishing posts. This skill uses the Buffer GraphQL API to manage the user's posting queue across connected social platforms.
+
+The user tells you what they want to post (or you receive output from another skill like `remotion-video`). **You help them craft platform-optimized posts and schedule them through Buffer.**
+
+---
+
+## Prerequisites
+
+### Buffer API Key
+
+This skill requires a `BUFFER_API_KEY` environment variable (stored in the project `.env` file). The user needs to:
+
+1. Go to [Buffer API Settings](https://publish.buffer.com/settings/api)
+2. Generate an API token
+3. It's already set up if the `.env` file contains `BUFFER_API_KEY`
+
+If the key is missing, tell the user:
+> "I need a Buffer API key to schedule posts. You can get one from publish.buffer.com/settings/api — want me to walk you through it?"
+
+### Connected Channels
+
+Buffer requires social media channels to be connected through the Buffer web app. This skill can list connected channels but cannot connect new ones via API.
+
+---
+
+## Interactive Question Flow
+
+**DO NOT jump straight to posting.** Walk the user through these questions. Skip any already answered by context (e.g., if they just created a video with the remotion-video skill, you already know the content).
+
+### Step 1: Absorb Context (silent)
+
+Before asking questions, check:
+
+1. **Was content just created?** — If a video was just rendered or an image was just made, that's the content. Don't ask "what do you want to post?"
+2. **Project context** — Read `.specs/vision.md` and `.specs/personas/*.md` if they exist. These inform tone, audience, and messaging.
+3. **Design tokens** — Brand voice and personality from `.specs/design-system/tokens.md`
+
+### Step 2: Ask Questions
+
+Group these conversationally. Skip what you already know.
+
+#### Always Ask:
+1. **Platform(s)** — "Where should this go? (Instagram, TikTok, Twitter/X, LinkedIn, Facebook, YouTube, Threads, Bluesky — or multiple?)"
+2. **Timing** — "When should this post?
+   - **Now** — publish immediately
+   - **Queue** — add to your Buffer queue (next available slot)
+   - **Specific time** — pick a date and time
+   - **Optimal** — let Buffer choose the best time"
+
+#### Ask Based on Content Type:
+3. **Caption** — "Want me to write the caption, or do you have one?" *(If writing, ask about tone: professional, casual, playful, provocative)*
+4. **Hashtags** — "Want me to generate hashtags? How many? (I'll tailor them per platform)"
+5. **Call to Action** — "Any CTA? (link in bio, swipe up, comment below, etc.)"
+
+#### Ask If Multiple Platforms:
+6. **Adapt or Duplicate** — "Should I adapt the caption per platform (different tone/length/hashtags for each), or post the same thing everywhere?"
+
+#### Optional:
+7. **Series** — "Is this part of a series or campaign? (helps me maintain consistency)"
+8. **Alt Text** — "Want me to generate alt text for accessibility?"
+
+### Step 3: Confirm & Schedule
+
+After gathering answers, show what you'll do:
+
+> "Here's what I'll schedule:
+> - **Platform**: Instagram Reels + TikTok
+> - **Timing**: Tomorrow at 9am EST (optimal for your audience)
+> - **Caption**: [show the caption]
+> - **Hashtags**: #tag1 #tag2 #tag3
+> - **CTA**: Link in bio
+>
+> Look good? I'll schedule it."
+
+Wait for confirmation before calling the Buffer API.
+
+---
+
+## Buffer GraphQL API Reference
+
+### Endpoint
+```
+POST https://api.buffer.com
+```
+
+### Authentication
+All requests use a Bearer token in the Authorization header:
+```
+Authorization: Bearer {BUFFER_API_KEY}
+Content-Type: application/json
+```
+
+### Making Requests
+
+All API calls are GraphQL POST requests with a JSON body containing `query` and optionally `variables`:
+
+```bash
+curl -X POST https://api.buffer.com \
+  -H "Authorization: Bearer $BUFFER_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "...", "variables": {...}}'
+```
+
+---
+
+### Key Queries
+
+#### Get Account & Organizations
+```graphql
+query GetAccount {
+  account {
+    email
+    timezone
+    organizations {
+      id
+    }
+  }
+}
+```
+Use this first to get the `organizationId` needed for other queries.
+
+#### List Connected Channels
+```graphql
+query GetChannels($input: ChannelsInput!) {
+  channels(input: $input) {
+    id
+    name
+    service
+    avatar
+    serverUrl
+    metadata {
+      ... on InstagramMetadata { instagramAccountType }
+      ... on FacebookMetadata { facebookPageName }
+      ... on TwitterMetadata { twitterUsername }
+      ... on LinkedInMetadata { linkedinAccountType }
+      ... on TikTokMetadata { tiktokUsername }
+      ... on YouTubeMetadata { youtubeChannelTitle }
+      ... on ThreadsMetadata { threadsUsername }
+      ... on BlueskyMetadata { blueskyUsername }
+      ... on MastodonMetadata { mastodonUsername }
+    }
+  }
+}
+```
+Variables:
+```json
+{
+  "input": {
+    "organizationId": "org_id_here"
+  }
+}
+```
+
+Each channel has:
+- `id` — ChannelId, use this for posting
+- `service` — platform (instagram, facebook, twitter, linkedin, tiktok, youtube, mastodon, threads, bluesky, googlebusiness, pinterest)
+- `name` — display name
+- `avatar` — profile image URL
+
+#### Get Posts (Queue / Sent)
+```graphql
+query GetPosts($input: PostsInput!, $first: Int, $after: String) {
+  posts(input: $input, first: $first, after: $after) {
+    edges {
+      node {
+        id
+        status
+        text
+        scheduledAt
+        publishedAt
+        channel {
+          id
+          service
+          name
+        }
+        tags {
+          id
+          name
+          color
+        }
+        assets {
+          ... on ImageAsset { url, altText }
+          ... on VideoAsset { url, thumbnailUrl }
+          ... on LinkAsset { url, title, description }
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    totalCount
+  }
+}
+```
+Variables:
+```json
+{
+  "input": {
+    "organizationId": "org_id_here",
+    "channelIds": ["channel_id"],
+    "status": "scheduled",
+    "sortOrder": "ASC"
+  },
+  "first": 25
+}
+```
+
+**Post statuses**: `draft`, `needs_approval`, `scheduled`, `sending`, `sent`, `error`
+
+#### Get a Single Post
+```graphql
+query GetPost($input: PostInput!) {
+  post(input: $input) {
+    id
+    status
+    text
+    scheduledAt
+    publishedAt
+  }
+}
+```
+Variables:
+```json
+{
+  "input": {
+    "postId": "post_id_here"
+  }
+}
+```
+
+---
+
+### Key Mutations
+
+#### Create a Post
+```graphql
+mutation CreatePost($input: CreatePostInput!) {
+  createPost(input: $input) {
+    ... on CreatePostPayload {
+      post {
+        id
+        status
+        text
+        scheduledAt
+      }
+    }
+    ... on MutationError {
+      message
+    }
+  }
+}
+```
+Variables:
+```json
+{
+  "input": {
+    "channelId": "channel_id_here",
+    "text": "Your post caption here #hashtag",
+    "schedulingType": "scheduled",
+    "dueAt": "2026-03-15T14:00:00Z",
+    "assets": {
+      "images": [
+        { "url": "https://example.com/image.jpg", "altText": "Description" }
+      ]
+    },
+    "metadata": {
+      "instagram": {
+        "postType": "reel"
+      }
+    },
+    "tagIds": ["tag_id"]
+  }
+}
+```
+
+**CreatePostInput fields:**
+- `channelId` (required) — which channel to post to
+- `text` (required) — the post caption/text
+- `schedulingType` — one of:
+  - `"scheduled"` — post at a specific time (requires `dueAt`)
+  - `"notification"` — send a notification to post manually
+  - `"automatic"` — add to queue (next available slot)
+- `dueAt` — ISO 8601 datetime for scheduled posts
+- `assets` — media attachments:
+  - `images`: `[{ url, altText }]`
+  - `videos`: `[{ url, thumbnailUrl }]`
+  - `documents`: `[{ url, title }]`
+  - `links`: `[{ url, title, description }]`
+- `metadata` — platform-specific options (see Platform Metadata below)
+- `tagIds` — array of tag IDs for organizing
+- `isDraft` — set to `true` to save as draft instead of scheduling
+
+**Important**: To post to multiple channels, call `createPost` once per channel. Each post is tied to a single `channelId`.
+
+#### Create an Idea
+```graphql
+mutation CreateIdea($input: CreateIdeaInput!) {
+  createIdea(input: $input) {
+    ... on CreateIdeaPayload {
+      idea {
+        id
+        content
+      }
+    }
+    ... on MutationError {
+      message
+    }
+  }
+}
+```
+Use ideas for content planning — save post ideas before they're ready to schedule.
+
+---
+
+### Platform-Specific Metadata
+
+When creating posts, you can pass platform-specific options in the `metadata` field:
+
+```json
+{
+  "metadata": {
+    "instagram": {
+      "postType": "reel"
+    },
+    "youtube": {
+      "privacySetting": "public",
+      "categoryId": "22"
+    },
+    "googlebusiness": {
+      "postType": "event"
+    }
+  }
+}
+```
+
+**Instagram**: `postType` — `"post"`, `"story"`, `"reel"`
+**YouTube**: `privacySetting`, `categoryId`
+**Google Business**: `postType` — `"standard"`, `"event"`, `"offer"`, `"promotion"`
+
+---
+
+### Rate Limits
+
+- **100 requests per 15 minutes** per client-account pair
+- **2000 requests per 15 minutes** per account (across all clients)
+- Query complexity limit: **175,000 points** per query
+- Max query depth: **25 levels**
+
+**Rate limit headers** are included in every response:
+- `RateLimit-Limit` — max requests in window
+- `RateLimit-Remaining` — requests left
+- `RateLimit-Reset` — seconds until window resets
+
+**429 response** includes `retryAfter` value in seconds.
+
+---
+
+### Error Handling
+
+Buffer returns two types of errors:
+
+**Non-recoverable** (in GraphQL `errors` array):
+| Code | Meaning |
+|------|---------|
+| `NOT_FOUND` | Resource doesn't exist |
+| `FORBIDDEN` | No permission / invalid token |
+| `UNAUTHORIZED` | Missing or expired auth |
+| `UNEXPECTED` | Server error |
+
+**Recoverable** (in mutation response payloads):
+Use `... on MutationError { message }` to catch these. They indicate validation issues like missing fields, invalid dates, etc.
+
+---
+
+## Supported Services
+
+Instagram, Facebook, Twitter/X, LinkedIn, Pinterest, TikTok, Google Business, YouTube, Mastodon, Threads, Bluesky, Start Page
+
+---
+
+## Platform-Specific Guidelines
+
+### Instagram
+- **Reels**: up to 90 seconds, 1080×1920 (9:16)
+- **Feed posts**: 1080×1080 (1:1) or 1080×1350 (4:5)
+- **Hashtags**: up to 30, but 5-15 performs best
+- **Caption length**: up to 2200 chars, but front-load the hook in first 125 chars (before "more" truncation)
+- **No clickable links** in captions — use "link in bio" CTA
+- **Emoji usage**: moderate, improves engagement
+
+### TikTok
+- **Video**: up to 10 minutes, 1080×1920 (9:16)
+- **Hashtags**: 3-5, trending ones help discovery
+- **Caption length**: 300 chars max — short and punchy
+- **Tone**: casual, authentic, conversational — NOT corporate
+- **Hook**: first 1-2 seconds must grab attention
+
+### Twitter/X
+- **Text**: 280 chars (or long-form with Twitter Blue)
+- **Video**: up to 2:20 (140s), max 512MB
+- **Hashtags**: 1-2 max, more looks spammy
+- **Tone**: witty, concise, conversational
+- **Threads**: break long content into thread format
+
+### LinkedIn
+- **Text**: up to 3000 chars
+- **Video**: up to 10 minutes
+- **Hashtags**: 3-5, professional/industry terms
+- **Tone**: professional but human, storytelling works well
+- **Hook**: first 2 lines visible before "see more"
+- **Best for**: thought leadership, behind-the-scenes, case studies
+
+### Facebook
+- **Text**: up to 63,206 chars (but shorter is better)
+- **Video**: up to 240 minutes
+- **Hashtags**: 1-3 or none — less hashtag-driven than other platforms
+- **Tone**: conversational, community-oriented
+
+### YouTube Shorts
+- **Video**: up to 60 seconds, 1080×1920 (9:16)
+- **Title**: up to 100 chars
+- **Description**: up to 5000 chars
+- **Hashtags**: 3-5 in description, first 3 show above title
+
+### Threads
+- **Text**: up to 500 chars
+- **Tone**: conversational, community-oriented (similar to Twitter but more personal)
+- **Hashtags**: minimal, 1-2 at most
+
+### Bluesky
+- **Text**: 300 chars
+- **Tone**: conversational, early-adopter tech crowd
+- **Hashtags**: not widely used yet on the platform
+
+---
+
+## Caption Writing Guidelines
+
+### Structure
+1. **Hook** — first line grabs attention (question, bold claim, surprising stat)
+2. **Body** — deliver the value (keep it scannable)
+3. **CTA** — tell them what to do next
+
+### Per-Platform Adaptation
+When posting to multiple platforms, adapt — don't just copy-paste:
+
+| Platform | Tone | Length | Hashtags |
+|----------|------|--------|----------|
+| Instagram | polished, aspirational | medium (100-200 words) | 5-15 |
+| TikTok | raw, casual, funny | short (1-2 sentences) | 3-5 |
+| Twitter/X | witty, concise | very short (1-2 sentences) | 1-2 |
+| LinkedIn | professional, insightful | longer (150-300 words) | 3-5 |
+| Facebook | conversational, warm | medium | 0-3 |
+| Threads | personal, conversational | short-medium | 0-2 |
+| Bluesky | casual, techy | short (1-2 sentences) | 0-1 |
+
+### Hashtag Strategy
+- Mix reach tiers: 1-2 broad (1M+ posts), 3-5 mid (100K-1M), 2-3 niche (<100K)
+- Check platform-specific trending tags when possible
+- Don't use banned/shadowbanned hashtags
+- Place hashtags at end of caption or in first comment (Instagram)
+
+---
+
+## Composing with Other Skills
+
+### After Remotion Video Creation
+
+When the user creates a video with `remotion-video` and then wants to post it:
+
+1. The video file path is already known from the render output
+2. Skip content questions — the video IS the content
+3. Focus on: platform, caption, hashtags, timing
+4. For Buffer, the video needs to be accessible via URL — guide the user to upload it or use a hosting service if needed
+
+### Content Repurposing Flow
+
+One piece of content → multiple platform-optimized posts:
+
+1. **Original**: 60-second video for Instagram Reels
+2. **TikTok**: same video, different caption (more casual), different hashtags
+3. **Twitter/X**: pull the best quote/hook as text + video clip
+4. **LinkedIn**: longer caption with professional angle + video
+5. **YouTube Shorts**: same video, optimized title and description
+6. **Threads**: conversational take on the same topic
+7. **Bluesky**: short, punchy version
+
+---
+
+## Content Calendar Planning
+
+When the user asks to plan content (not just schedule a single post):
+
+### Weekly Planning
+1. Ask about content pillars (themes they rotate through)
+2. Ask about posting frequency per platform
+3. Suggest a week's worth of posts with timing
+4. Show as a calendar view:
+
+```
+┌──────────┬─────────────┬─────────────┬──────────────┐
+│ Day      │ Instagram   │ TikTok      │ LinkedIn     │
+├──────────┼─────────────┼─────────────┼──────────────┤
+│ Monday   │ Reel: tip   │ —           │ Article      │
+│ Tuesday  │ —           │ Trend hop   │ —            │
+│ Wednesday│ Carousel    │ —           │ —            │
+│ Thursday │ —           │ BTS clip    │ Case study   │
+│ Friday   │ Reel: CTA   │ Reel repost │ —            │
+└──────────┴─────────────┴─────────────┴──────────────┘
+```
+
+### Using Buffer Ideas for Planning
+Use the `createIdea` mutation to save content ideas before they're ready to schedule. This keeps the planning phase in Buffer too:
+
+1. Plan the week's content
+2. Save each piece as an Idea in Buffer
+3. When ready, convert ideas into scheduled posts
+
+### Bulk Scheduling
+When scheduling multiple posts at once:
+1. Create all posts in a batch (one `createPost` per channel per post)
+2. Show a summary table before confirming
+3. Use `schedulingType: "automatic"` to let Buffer space them out in the queue
+
+---
+
+## Media Handling
+
+Buffer requires media to be accessible via URL. When working with local files:
+
+1. **Check if the user has a preferred hosting solution** (S3, Cloudinary, etc.)
+2. **For quick sharing**: suggest temporary hosting or guide upload to Buffer's web UI
+3. **For production workflows**: recommend setting up an S3 bucket or Cloudinary account for programmatic uploads
+
+Assets are passed in the `assets` field of `createPost`:
+```json
+{
+  "assets": {
+    "images": [{ "url": "https://...", "altText": "..." }],
+    "videos": [{ "url": "https://...", "thumbnailUrl": "https://..." }],
+    "links": [{ "url": "https://...", "title": "...", "description": "..." }]
+  }
+}
+```
+
+---
+
+## Workflow: Full Post Creation via curl
+
+Here's the complete flow executed via bash:
+
+```bash
+# 1. Get organization ID
+curl -s -X POST https://api.buffer.com \
+  -H "Authorization: Bearer $BUFFER_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "{ account { organizations { id } } }"}'
+
+# 2. List channels for that org
+curl -s -X POST https://api.buffer.com \
+  -H "Authorization: Bearer $BUFFER_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "query($input: ChannelsInput!) { channels(input: $input) { id service name } }", "variables": {"input": {"organizationId": "ORG_ID"}}}'
+
+# 3. Create a scheduled post
+curl -s -X POST https://api.buffer.com \
+  -H "Authorization: Bearer $BUFFER_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "mutation($input: CreatePostInput!) { createPost(input: $input) { ... on CreatePostPayload { post { id status scheduledAt } } ... on MutationError { message } } }", "variables": {"input": {"channelId": "CHANNEL_ID", "text": "Your post here", "schedulingType": "scheduled", "dueAt": "2026-03-15T14:00:00Z"}}}'
+```
