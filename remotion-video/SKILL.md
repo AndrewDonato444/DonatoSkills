@@ -34,6 +34,12 @@ If any required parameter is missing, fall back to the interactive question flow
 
 ---
 
+## Hook Writing
+
+Before writing any video script, voiceover, or first-scene text, read `shared-references/hook-writing.md` for platform-specific hook best practices. The first 3-5 seconds of every video IS the hook — it must stop the scroll.
+
+---
+
 ## Interactive Question Flow
 
 **DO NOT jump straight to building.** Walk the user through these questions conversationally. Skip any that are already answered by their initial request or by project context (SDD files, design tokens, etc). Group related questions together — don't ask one at a time.

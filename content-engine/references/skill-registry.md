@@ -94,33 +94,87 @@ After scheduling, returns:
 
 ---
 
-## image-gen (Future)
+## image-gen
 
-**Produces**: `.png` or `.jpg` image file
-**Status**: Not yet implemented
+**Produces**: `.png` image file
+**Skill location**: `/image-gen/SKILL.md`
+**Output location**: `images/<job-name>/output/<image-name>.png`
 
-### Planned Parameters
+### Required Parameters (for orchestrated mode)
 
 | Parameter | Description | Example |
 |-----------|-------------|---------|
 | concept | What the image shows | "Matcha latte in a cozy setting" |
-| dimensions | Image size | "1080x1080" |
-| style | Visual style | "photography-style, warm tones" |
-| text_overlay | Text on the image | "5 Benefits of Matcha" |
+| platform | Target platform + dimensions | "Instagram (1080x1080, 1:1)" |
+| style | Visual style | "photorealistic, warm tones" |
 
----
-
-## copywriting (Future)
-
-**Produces**: Text content (blog, email, thread)
-**Status**: Not yet implemented
-
-### Planned Parameters
+### Optional Parameters
 
 | Parameter | Description | Example |
 |-----------|-------------|---------|
-| topic | Subject matter | "Benefits of morning routines" |
-| tone | Writing style | "casual, conversational" |
-| length | Word count target | "150 words" |
-| format | Content structure | "twitter-thread", "blog-post", "email" |
-| cta | Call to action | "Sign up for the newsletter" |
+| text_overlay | Text on the image (keep under 25 chars) | "'Dream Big' in bold white sans-serif, centered" |
+| model | Nano Banana model | "gemini-2.5-flash-image" (default) or "gemini-3-pro-image-preview" |
+| quantity | Number of variations | 1 (default), up to 4 |
+| output_path | Custom output directory | "images/zenbrew-march/" |
+
+### Orchestrated Invocation Template
+
+```
+Use the image-gen skill to create an image. ORCHESTRATED MODE -- all parameters provided, skip questions and generate directly.
+
+- Concept: [what the image shows]
+- Platform: [platform] ([width]x[height], [ratio])
+- Style: [visual style description]
+- Text: [exact text in quotes, font style, placement] (or "none")
+- Output: images/[campaign-slug]/
+```
+
+### Output
+
+After generation, the skill produces:
+- `output/<image-name>.png` — the generated image
+- Generation script at `scripts/generate-image.ts` (reusable for regeneration)
+
+---
+
+## text-writer
+
+**Produces**: Text post saved to markdown file
+**Skill location**: `/text-writer/SKILL.md`
+**Output location**: `text-posts/<job-name>/posts.md`
+
+### Required Parameters (for orchestrated mode)
+
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| platform | Target platform | "Twitter/X" |
+| topic | What the post is about | "Why vibe coding changes everything" |
+| tone | Writing style | "funny, casual" |
+
+### Optional Parameters
+
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| format | Post structure | "single post", "thread", "hot take", "tips" |
+| cta | Call to action | "follow", "comment", "none" |
+| hashtags | Include hashtags | "yes, 1-2" or "none" |
+| job_name | Output folder name | "zenbrew-march" |
+
+### Orchestrated Invocation Template
+
+```
+Use the text-writer skill to write a post. ORCHESTRATED MODE -- all parameters provided, skip questions and write directly.
+
+- Platform: [platform]
+- Topic: [what the post is about]
+- Tone: [writing style]
+- Format: [single post / thread / hot take / tips]
+- Job: [campaign-slug]
+```
+
+### Output
+
+After writing, the skill:
+- Appends the post to `text-posts/<job-name>/posts.md`
+- All posts for a campaign are in ONE file (not scattered)
+- Each post has metadata (platform, date, status)

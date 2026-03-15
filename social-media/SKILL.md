@@ -64,6 +64,7 @@ Before asking questions, check:
 1. **Was content just created?** — If a video was just rendered or an image was just made, that's the content. Don't ask "what do you want to post?"
 2. **Project context** — Read `.specs/vision.md` and `.specs/personas/*.md` if they exist. These inform tone, audience, and messaging.
 3. **Design tokens** — Brand voice and personality from `.specs/design-system/tokens.md`
+4. **Hook best practices** — Read `shared-references/hook-writing.md` before writing any caption. The first line of every caption IS the hook.
 
 ### Step 2: Ask Questions
 

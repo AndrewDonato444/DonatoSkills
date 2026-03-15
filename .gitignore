@@ -3,11 +3,13 @@
 .env.*
 **/GEMINI_API_KEY*
 
-# Don't commit generated video assets
+# Don't commit generated assets
 **/out/*.mp4
 **/public/generated/*.png
 **/public/audio/*.wav
 **/voice-samples/
+images/*/output/
+text-posts/
 
 # Node
 node_modules/

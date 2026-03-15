@@ -172,10 +172,12 @@ Determine which skill to invoke based on the item's `type`:
 | Content Type | Skill | Orchestrated Invocation |
 |-------------|-------|------------------------|
 | `video` | `remotion-video` | Invoke with all params pre-specified (platform, content, style, duration, voiceover). The skill will skip its interactive Q&A and build directly. |
-| `image` | `image-gen` (future) | Invoke with concept, dimensions, style. |
-| `text` | None (write directly) | Generate the caption/thread text yourself. No skill needed. |
+| `image` | `image-gen` | Invoke with concept, platform, style, text overlay. The skill will skip its interactive Q&A and generate directly. |
+| `text` | `text-writer` | Invoke with platform, topic, tone, format. The skill will skip its interactive Q&A and write directly. Saves to `text-posts/<campaign-slug>/posts.md`. |
 
 **Invoking a creation skill in orchestrated mode:**
+
+**Before writing any hook, caption, or opening line**, read `shared-references/hook-writing.md` for platform-specific best practices.
 
 When invoking `remotion-video`, provide ALL of these in your prompt so it skips questions:
 - Platform and dimensions
@@ -193,6 +195,36 @@ Example orchestrated invocation:
 > - Duration: 15 seconds
 > - Voiceover: AI voiceover, script: [the script]
 > - Output: videos/[campaign-slug]/item-001/"
+
+When invoking `image-gen`, provide ALL of these:
+- Concept (what the image shows)
+- Platform and dimensions
+- Style (photorealistic, flat, abstract, etc.)
+- Text overlay (if any, with exact text and font style)
+- Output path
+
+Example orchestrated invocation:
+> "Use the image-gen skill to create an image. ORCHESTRATED MODE -- all parameters provided, skip questions and generate directly.
+> - Concept: [the concept from the calendar]
+> - Platform: Instagram (1080x1080, 1:1)
+> - Style: [brand style]
+> - Text: '[hook text]' in bold white sans-serif, centered
+> - Output: images/[campaign-slug]/"
+
+When invoking `text-writer`, provide ALL of these:
+- Platform
+- Topic/message
+- Tone
+- Format (single post, thread, hot take)
+- Job name (campaign slug)
+
+Example orchestrated invocation:
+> "Use the text-writer skill to write a post. ORCHESTRATED MODE -- all parameters provided, skip questions and write directly.
+> - Platform: Twitter/X
+> - Topic: [the concept from the calendar]
+> - Tone: [brand tone]
+> - Format: single post
+> - Job: [campaign-slug]"
 
 Update calendar item status to `creating` before, `created` after (with `asset_path`).
 
@@ -267,9 +299,9 @@ Available content creation skills and their interfaces:
 | Skill | Produces | Required Params | Optional Params |
 |-------|----------|-----------------|-----------------|
 | `remotion-video` | `.mp4` video | platform, message, style, duration | voiceover (script + voice), visual mode, music |
+| `image-gen` | `.png` image | concept, platform, style | text overlay, model (flash/pro), quantity |
+| `text-writer` | Text post (saved to file) | platform, topic, tone | format, CTA, hashtags |
 | `social-media` | Scheduled post | channel_id, text, timing | assets, hashtags, metadata |
-| `image-gen` | `.png/.jpg` image | concept, dimensions | style, colors, text overlay |
-| `copywriting` | Text content | topic, tone, length | CTA, audience, format |
 
 See `references/skill-registry.md` for detailed interface specs.
 
