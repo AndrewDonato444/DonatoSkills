@@ -61,8 +61,12 @@ Present questions as a grouped, conversational message. Here's the full question
 7. **Colors** — "Any specific colors or brand palette?" *(skip if tokens.md or tailwind covers this)*
 
 #### Optional:
-8. **Logo** — "Want a logo included? I can check your project for one, or you can point me to a file." *(Check `public/` and project root first — if you find one, just mention it: "I found logo.png — want me to include it?")*
-9. **Multi-platform** — "Want me to render for multiple platforms at once? I can create compositions for different aspect ratios from the same content."
+8. **Voiceover** — "Want a voiceover narration?
+   - **No voiceover** — video only (default)
+   - **AI voiceover** — I'll write a script, you approve it, then I generate audio and build the video around it *(requires GEMINI_API_KEY)*
+   - **Script only** — I'll write the voiceover script but you record it yourself"
+9. **Logo** — "Want a logo included? I can check your project for one, or you can point me to a file." *(Check `public/` and project root first — if you find one, just mention it: "I found logo.png — want me to include it?")*
+10. **Multi-platform** — "Want me to render for multiple platforms at once? I can create compositions for different aspect ratios from the same content."
 
 ### Step 3: Confirm & Build
 
@@ -73,10 +77,13 @@ After gathering answers, give a brief summary of what you'll build:
 > - **Duration**: 15 seconds (450 frames)
 > - **Style**: Premium/luxury using your design tokens (navy + gold palette)
 > - **Visuals**: AI-generated backgrounds via Nano Banana
+> - **Voiceover**: AI narration via Gemini TTS (Kore voice) *(or "None")*
 > - **Scenes**: [brief scene breakdown]
 > - **Logo**: Your logo.png as an end-card reveal
 >
 > Ready to build?"
+
+**If AI voiceover was selected**, the workflow forks to audio-first (see [Audio-First Workflow](#audio-first-workflow-voiceover) below). Write the script, show it to the user for approval, then generate audio before building visuals.
 
 Then build it.
 
@@ -201,6 +208,183 @@ User supplies their own images/photos. Copy them to `public/` and animate with K
 
 ---
 
+## Audio-First Workflow (Voiceover)
+
+When the user selects AI voiceover, the entire build approach changes. **Audio drives timing** — you write a script, generate narration, measure durations, then build visuals to fit.
+
+```
+                    ┌─ No voiceover ──→ VISUAL-FIRST (default)
+                    │                   Platform → Content → Style → Build visuals → Render
+                    │                   Scene durations are fixed by platform norms
+                    │
+Voiceover question ─┤
+                    │
+                    └─ AI voiceover ──→ AUDIO-FIRST
+                                        Write script → User approves → Generate audio →
+                                        Measure durations → Build visuals to fit audio → Render
+                                        Scene durations are driven by the narration
+```
+
+Both paths use the same components (AnimatedText, SceneBackground, etc.) and the same project structure. The difference is what drives the timing.
+
+### Step 1: Write the Script
+
+Write a voiceover script for each scene. Follow these rules:
+
+- **DON'T** just read the on-screen text aloud — that's redundant and wastes the audio channel
+- **DO** add context, urgency, or personality that complements the visuals
+- Keep it conversational — like a confident friend, not a narrator
+- Hook-first: the first sentence needs to stop the scroll
+- End with a clear, concise CTA
+- Use the project's persona vocabulary (from SDD files if available)
+
+**Pacing rules (from testing):**
+- Target ~2 words per second — Gemini TTS speaks at natural pace, not rushed
+- A 15-second video = ~30 words total of voiceover
+- A 30-second video = ~60 words total
+- Leave breathing room: not every second needs narration. Pauses are powerful.
+
+**Show the script to the user and PAUSE for approval** before generating audio.
+
+### Step 2: Generate Audio
+
+Create a `scripts/generate-voiceover.ts` in the video project:
+
+```typescript
+import { GoogleGenAI } from "@google/genai";
+import wav from "wav";
+import * as fs from "node:fs";
+import * as path from "node:path";
+
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+interface SceneScript {
+  name: string;       // e.g., "scene-1-hook"
+  script: string;     // the voiceover text
+  direction?: string; // e.g., "confident, direct" (set once, omit for subsequent scenes)
+}
+
+async function generateVoiceover(scenes: SceneScript[], voice: string = "Kore") {
+  const outputDir = path.join(__dirname, "..", "public", "audio");
+  fs.mkdirSync(outputDir, { recursive: true });
+
+  const manifest: Record<string, { file: string; durationSec: number }> = {};
+
+  for (const scene of scenes) {
+    console.log(`🎙️ Generating: ${scene.name}...`);
+    const prompt = scene.direction
+      ? `Speak in a ${scene.direction} tone:\n${scene.script}`
+      : scene.script;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-preview-tts",
+      contents: [{ parts: [{ text: prompt }] }],
+      config: {
+        responseModalities: ["AUDIO"],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: { voiceName: voice },
+          },
+        },
+      },
+    });
+
+    const data = response.candidates![0].content!.parts![0].inlineData!.data!;
+    const audioBuffer = Buffer.from(data, "base64");
+
+    // Write as WAV (24kHz, 16-bit, mono)
+    const filepath = path.join(outputDir, `${scene.name}.wav`);
+    const writer = new wav.FileWriter(filepath, {
+      sampleRate: 24000,
+      channels: 1,
+      bitDepth: 16,
+    });
+    writer.write(audioBuffer);
+    writer.end();
+
+    // Calculate duration from PCM data
+    const durationSec = audioBuffer.length / (24000 * 2); // 24kHz, 16-bit = 2 bytes/sample
+    manifest[scene.name] = { file: `audio/${scene.name}.wav`, durationSec };
+    console.log(`  Saved: ${filepath} (${durationSec.toFixed(1)}s)`);
+  }
+
+  // Write timing manifest for Remotion to consume
+  const manifestPath = path.join(outputDir, "manifest.json");
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+  console.log(`\n📋 Timing manifest: ${manifestPath}`);
+
+  return manifest;
+}
+
+// Define scenes for this video
+const scenes: SceneScript[] = [
+  {
+    name: "scene-1-hook",
+    script: "Your hook script here...",
+    direction: "confident, direct",  // set voice style once on first scene
+  },
+  {
+    name: "scene-2-body",
+    script: "Body script here...",
+    // no direction — voice stays consistent
+  },
+  {
+    name: "scene-3-cta",
+    script: "CTA script here...",
+  },
+];
+
+generateVoiceover(scenes).catch(console.error);
+```
+
+**Voice selection by project personality:**
+
+| Personality | Suggested Voices |
+|------------|-----------------|
+| Professional/Luxury | Kore (firm), Charon (deep), Orus (clear) |
+| Energetic/Fun | Puck (upbeat), Zephyr (bright) |
+| Warm/Friendly | Aoede, Leda |
+| Technical/Serious | Fenrir, Enceladus |
+
+See `references/tts-best-practices.md` for the full voice list (30 voices), script writing tips, and direction prompt patterns.
+
+### Step 3: Size Scenes to Audio
+
+After generating audio, read the timing manifest and set each scene's `durationInFrames` to match:
+
+```tsx
+import { Audio, staticFile, Sequence } from "remotion";
+import manifest from "../../public/audio/manifest.json";
+
+// Convert audio duration to frames
+const fps = 30;
+const scene1Frames = Math.ceil(manifest["scene-1-hook"].durationSec * fps);
+const scene2Frames = Math.ceil(manifest["scene-2-body"].durationSec * fps);
+const scene3Frames = Math.ceil(manifest["scene-3-cta"].durationSec * fps);
+
+// Build sequences synced to audio
+<Sequence from={0} durationInFrames={scene1Frames}>
+  <Audio src={staticFile("audio/scene-1-hook.wav")} />
+  <HookScene />
+</Sequence>
+<Sequence from={scene1Frames} durationInFrames={scene2Frames}>
+  <Audio src={staticFile("audio/scene-2-body.wav")} />
+  <BodyScene />
+</Sequence>
+<Sequence from={scene1Frames + scene2Frames} durationInFrames={scene3Frames}>
+  <Audio src={staticFile("audio/scene-3-cta.wav")} />
+  <CTAScene />
+</Sequence>
+```
+
+The total composition `durationInFrames` should be the sum of all scene frames.
+
+### Script-Only Mode
+
+If the user chose "Script only", write the script the same way and show it for approval, but skip audio generation. Note in the project README that the user should record their own audio and place WAV files in `public/audio/` following the naming convention.
+
+---
+
 ## Platform Presets
 
 Each platform has specific dimensions and duration norms. Use these unless the user says otherwise:
@@ -258,6 +442,12 @@ If using AI-generated visuals, also install:
 npm i @google/genai
 ```
 
+If using AI voiceover, also install:
+```bash
+npm i @google/genai wav
+npm i -D @types/wav
+```
+
 File structure:
 
 ```
@@ -272,9 +462,11 @@ videos/<project-name>/
 │   └── lib/
 │       └── constants.ts      # Colors, fonts, timing
 ├── scripts/
-│   └── generate-assets.ts    # (if using Nano Banana)
+│   ├── generate-assets.ts    # (if using Nano Banana)
+│   └── generate-voiceover.ts # (if using AI voiceover)
 ├── public/                   # Static assets (logos, images)
-│   └── generated/            # (AI-generated images go here)
+│   ├── generated/            # (AI-generated images go here)
+│   └── audio/                # (AI-generated voiceover WAVs go here)
 ├── remotion.config.ts
 ├── tsconfig.json
 ├── package.json
@@ -311,7 +503,13 @@ Config.setOverwriteOutput(true);
 
 ```bash
 #!/bin/bash
-# Generate AI assets first (if applicable)
+# Generate AI voiceover first (if applicable — audio drives timing)
+if [ -f scripts/generate-voiceover.ts ] && [ -n "$GEMINI_API_KEY" ]; then
+  echo "🎙️ Generating AI voiceover..."
+  npx tsx scripts/generate-voiceover.ts
+fi
+
+# Generate AI assets (if applicable)
 if [ -f scripts/generate-assets.ts ] && [ -n "$GEMINI_API_KEY" ]; then
   echo "🍌 Generating AI visuals..."
   npx tsx scripts/generate-assets.ts

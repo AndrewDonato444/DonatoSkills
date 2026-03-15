@@ -145,4 +145,4 @@ project structure. The difference is what drives the timing.
 
 ## Status
 
-💡 Idea — tested, not yet integrated into SKILL.md
+✅ Integrated into SKILL.md (2026-03-14) — question flow, audio-first workflow, generate-voiceover.ts script, timing manifest, Remotion Audio sync, voice selection table, and render.sh hook.
