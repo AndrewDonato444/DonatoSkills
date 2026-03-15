@@ -151,13 +151,43 @@ curl -s -X POST https://api.buffer.com \
   }'
 ```
 
-## Scheduling Types
+## Important: Use Inline Variables
 
-| Type | Behavior |
-|------|----------|
-| `scheduled` | Post at specific time (requires `dueAt`) |
-| `automatic` | Add to queue (next available slot) |
+The Buffer GraphQL API returns `Bad Request` when using the `variables` JSON field for mutations and some queries. **Use inline variables instead:**
+
+```graphql
+# YES — works
+mutation { createPost(input: { channelId: "abc", text: "hello", ... }) { ... } }
+
+# NO — returns Bad Request on mutations
+{"query": "mutation($input: CreatePostInput!) { ... }", "variables": {"input": {...}}}
+```
+
+For queries like `channels`, inline also works more reliably:
+```graphql
+{ channels(input: { organizationId: "abc" }) { id service name } }
+```
+
+## Required Fields for createPost
+
+Both `schedulingType` and `mode` are **required**:
+
+### schedulingType (enum)
+
+| Value | Behavior |
+|-------|----------|
+| `automatic` | Use Buffer's scheduling |
 | `notification` | Send push notification to post manually |
+
+### mode (enum — ShareMode)
+
+| Value | Behavior |
+|-------|----------|
+| `shareNow` | Publish immediately |
+| `addToQueue` | Add to end of queue |
+| `shareNext` | Add to top of queue (next to go out) |
+| `customScheduled` | Post at specific time (requires `dueAt`) |
+| `recommendedTime` | Let Buffer pick optimal time |
 
 ## Post Statuses
 

@@ -262,37 +262,42 @@ mutation CreatePost($input: CreatePostInput!) {
   }
 }
 ```
-Variables:
-```json
-{
-  "input": {
-    "channelId": "channel_id_here",
-    "text": "Your post caption here #hashtag",
-    "schedulingType": "scheduled",
-    "dueAt": "2026-03-15T14:00:00Z",
-    "assets": {
-      "images": [
-        { "url": "https://example.com/image.jpg", "altText": "Description" }
-      ]
-    },
-    "metadata": {
-      "instagram": {
-        "postType": "reel"
-      }
-    },
-    "tagIds": ["tag_id"]
+**Important: Use inline variables, not the `variables` JSON field.** The Buffer API returns `Bad Request` when using parameterized variables for mutations. Use inline values instead.
+
+Inline example:
+```graphql
+mutation {
+  createPost(input: {
+    channelId: "channel_id_here"
+    text: "Your post caption here #hashtag"
+    schedulingType: automatic
+    mode: addToQueue
+    dueAt: "2026-03-15T14:00:00Z"
+    assets: {
+      images: [{ url: "https://example.com/image.jpg", altText: "Description" }]
+    }
+    metadata: {
+      instagram: { postType: "reel" }
+    }
+  }) {
+    ... on MutationError { message }
   }
 }
 ```
 
 **CreatePostInput fields:**
 - `channelId` (required) — which channel to post to
-- `text` (required) — the post caption/text
-- `schedulingType` — one of:
-  - `"scheduled"` — post at a specific time (requires `dueAt`)
-  - `"notification"` — send a notification to post manually
-  - `"automatic"` — add to queue (next available slot)
-- `dueAt` — ISO 8601 datetime for scheduled posts
+- `text` — the post caption/text
+- `schedulingType` (required) — enum:
+  - `automatic` — use Buffer's scheduling
+  - `notification` — send push notification to post manually
+- `mode` (required) — enum (ShareMode):
+  - `shareNow` — publish immediately
+  - `addToQueue` — add to end of queue
+  - `shareNext` — add to top of queue (next to go out)
+  - `customScheduled` — post at specific time (requires `dueAt`)
+  - `recommendedTime` — let Buffer pick optimal time
+- `dueAt` — ISO 8601 datetime (required when mode is `customScheduled`)
 - `assets` — media attachments:
   - `images`: `[{ url, altText }]`
   - `videos`: `[{ url, thumbnailUrl }]`
@@ -300,7 +305,9 @@ Variables:
   - `links`: `[{ url, title, description }]`
 - `metadata` — platform-specific options (see Platform Metadata below)
 - `tagIds` — array of tag IDs for organizing
-- `isDraft` — set to `true` to save as draft instead of scheduling
+- `saveToDraft` — set to `true` to save as draft instead of scheduling
+- `aiAssisted` — set to `true` to flag as AI-generated content
+- `source` — string to identify the client (e.g., `"claude-social-media-skill"`)
 
 **Important**: To post to multiple channels, call `createPost` once per channel. Each post is tied to a single `channelId`.
 
