@@ -15,6 +15,25 @@ The user tells you what they want to post (or you receive output from another sk
 
 ---
 
+## Orchestrated Mode
+
+When invoked by the `content-engine` skill (or any orchestrator), the prompt will contain **"ORCHESTRATED MODE"** and all required parameters (channel_id, caption, timing, asset URL). In this case:
+
+1. **Skip the interactive question flow entirely** — all decisions are already made
+2. **Confirm in one line** — e.g., "Scheduling video post to Twitter/X for Mar 17 at 2pm..."
+3. **Go straight to the Buffer API call**
+4. **Output a structured summary when done:**
+   ```
+   POST_SCHEDULED
+   buffer_post_id: 67d5f3a...
+   platform: twitter
+   scheduled_at: 2026-03-17T14:00:00Z
+   ```
+
+If any required parameter is missing, fall back to the interactive question flow for that parameter only.
+
+---
+
 ## Prerequisites
 
 ### Buffer API Key

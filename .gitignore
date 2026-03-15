@@ -14,6 +14,9 @@ node_modules/
 dist/
 *.log
 
+# Content engine calendars (generated, contain local paths)
+content-engine/calendars/
+
 # OS
 .DS_Store
 Thumbs.db

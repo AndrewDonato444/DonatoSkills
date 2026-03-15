@@ -15,6 +15,25 @@ The user tells you what video they want. **You guide them through an interactive
 
 ---
 
+## Orchestrated Mode
+
+When invoked by the `content-engine` skill (or any orchestrator), the prompt will contain **"ORCHESTRATED MODE"** and all required parameters (platform, message, style, duration, voiceover). In this case:
+
+1. **Skip the interactive question flow entirely** — all decisions are already made
+2. **Confirm the plan in one line** — e.g., "Building 15s Twitter video with AI voiceover..."
+3. **Proceed directly to scaffolding and building**
+4. **Output a structured summary when done:**
+   ```
+   VIDEO_COMPLETE
+   asset_path: videos/campaign-slug/item-001/out/video.mp4
+   duration: 15s
+   dimensions: 1080x1080
+   ```
+
+If any required parameter is missing, fall back to the interactive question flow for that parameter only.
+
+---
+
 ## Interactive Question Flow
 
 **DO NOT jump straight to building.** Walk the user through these questions conversationally. Skip any that are already answered by their initial request or by project context (SDD files, design tokens, etc). Group related questions together — don't ask one at a time.
