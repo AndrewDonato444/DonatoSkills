@@ -117,6 +117,30 @@ Generate 2-4 variations quickly for testing:
 
 ---
 
+## Text Misspelling in Generated Images
+
+**Gemini frequently misspells text embedded in generated images.** This is a known limitation — even with correct text in the prompt, the output may contain:
+- Swapped letters: "mo" instead of "to"
+- Dropped letters: "aready" instead of "already"
+- Phonetic substitutions: "rel" instead of "real"
+- Extra or missing spaces
+
+### Mitigation Strategies
+
+| Strategy | Effort | Reliability |
+|----------|--------|-------------|
+| Spell out words letter-by-letter in prompt ("A-L-R-E-A-D-Y") | Low | Medium |
+| Add "CRITICAL SPELLING: Double-check every word" to prompt | Low | Low-Medium |
+| Generate 2-3 variants, pick the one with correct spelling | Medium | Medium-High |
+| Generate image WITHOUT text, add text programmatically | High | Guaranteed |
+| Human review step before publishing | Medium | High |
+
+**Recommended approach for production**: Generate the image without text, then overlay text using ImageMagick, HTML canvas, or the `sharp` library. This guarantees accuracy and gives you full control over typography.
+
+For quick/draft use, generate with text but always visually verify before publishing.
+
+---
+
 ## Common Pitfalls
 
 | Pitfall | Fix |
@@ -127,3 +151,4 @@ Generate 2-4 variations quickly for testing:
 | Too much text | Keep under 25 chars or add text in post-processing |
 | Inconsistent batch style | Use JSON template with only subject/text varying |
 | Ignoring rate limits | Add 2s delay between requests, exponential backoff on 429 |
+| **Text misspelled in output** | Generate image without text, add text programmatically |

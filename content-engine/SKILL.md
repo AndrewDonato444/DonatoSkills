@@ -223,7 +223,7 @@ Example orchestrated invocation:
 > - Style: [brand style]
 > - Duration: 15 seconds
 > - Voiceover: AI voiceover, script: [the script]
-> - Output: videos/[campaign-slug]/item-001/"
+> - Output: [absolute-path]/content-engine/calendars/[campaign-slug]/videos/001-[name]/"
 
 When invoking `image-gen`, provide ALL of these:
 - Concept (what the image shows)
@@ -238,7 +238,7 @@ Example orchestrated invocation:
 > - Platform: Instagram (1080x1080, 1:1)
 > - Style: [brand style]
 > - Text: '[hook text]' in bold white sans-serif, centered
-> - Output: images/[campaign-slug]/"
+> - Output: [absolute-path]/content-engine/calendars/[campaign-slug]/images/[item-id]-[name]/"
 
 When invoking `text-writer`, provide ALL of these:
 - Platform
@@ -355,9 +355,11 @@ Adapt captions per platform -- don't copy-paste:
 | Twitter/X | witty, concise | 280 chars | 1-2 |
 | Instagram | polished, aspirational | 2200 chars (hook in first 125) | 5-15 |
 | TikTok | raw, casual, funny | 300 chars | 3-5 |
-| LinkedIn | professional, insightful | 3000 chars | 3-5 |
+| LinkedIn | professional, insightful | 1248 chars (practical limit for media posts; 3000 theoretical) | 3-5 |
 | Threads | personal, conversational | 500 chars | 0-2 |
 | Bluesky | casual, techy | 300 chars | 0-1 |
+
+**Caption length validation**: Before scheduling any post, verify the caption length against the platform's practical limit. If a caption exceeds the limit, auto-trim while preserving the hook and CTA, or flag for manual review. LinkedIn's 1248-character limit for posts with media is especially easy to exceed.
 
 ### Cross-Platform Repurposing
 One piece of content becomes multiple platform-optimized posts:
@@ -393,6 +395,56 @@ Next scheduled post: Mar 17 at 9am EST (Twitter/X)
 - If Cloudinary upload fails, retry once, then mark as `failed` and continue
 - If Buffer scheduling fails, log the error with the mutation response, mark as `failed`, continue
 - At the end, report all failures so the user can address them
+
+---
+
+## Orchestration Rules (Learned from Production)
+
+### Use Absolute Paths for All Asset Outputs
+
+When invoking creation skills, always use **fully resolved absolute paths** for output directories. Do NOT use relative paths — they cause assets to be created inside wrong directories (e.g., a video project nested inside another video project).
+
+**Canonical paths:**
+- Videos: `<project-root>/content-engine/calendars/<campaign-slug>/videos/<item-id>-<name>/`
+- Images: `<project-root>/content-engine/calendars/<campaign-slug>/images/<item-id>-<name>/`
+- Text: `<project-root>/content-engine/calendars/<campaign-slug>/text-posts/posts.md`
+
+Store `asset_path` in `calendar.json` relative to the campaign directory so downstream scripts (upload, scheduling) know exactly where to find files.
+
+### Sequential Voiceover Generation
+
+When multiple videos in a calendar need AI voiceover, create them **one at a time** (not in parallel). Gemini TTS has a rate limit of 10 requests/minute/model. Running 3+ videos with voiceover in parallel will hit 429 errors.
+
+### Environment Variable Loading
+
+Scripts that call external APIs (Gemini, Cloudinary) need env vars exported to subprocesses. `source .env` does NOT export to subprocesses. Use this pattern:
+
+```bash
+# In shell scripts — set -a makes all variables auto-export (handles spaces/quotes safely)
+set -a
+source /path/to/.env
+set +a
+```
+
+```typescript
+// In TypeScript scripts — requires `npm i dotenv` in the project
+import { config } from "dotenv";
+config({ path: "/path/to/.env" });
+```
+
+Or ensure `render.sh` / generation scripts use `npx tsx --no-cache` with env vars already exported.
+
+### Auto-Prompt for Missing Projects
+
+When resolving the active project from `projects.json` and the project is NOT found:
+1. Do NOT silently fail or skip project resolution
+2. Tell the user: "I don't see [project name] in the project registry. Want me to add it? I'll need: Buffer channel IDs, Cloudinary credentials, and brand context."
+3. Offer to query Buffer for available channels and auto-create the registry entry
+4. After gathering config, write the entry to `projects.json` and continue
+
+### Always Use `npx tsx --no-cache`
+
+All `npx tsx` invocations must use the `--no-cache` flag. Without it, tsx may serve stale transpiled output that doesn't reflect the latest source changes, causing bugs that are invisible in the source code.
 
 ---
 

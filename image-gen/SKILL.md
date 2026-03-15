@@ -308,6 +308,13 @@ For best text rendering accuracy:
 - Avoid cursive/script fonts — sans-serif renders most reliably
 - For longer text, consider generating the image WITHOUT text and adding text overlay in post-processing
 
+**CRITICAL: Gemini frequently misspells text in generated images.** Common errors include swapped letters ("mo" for "to"), dropped letters ("aready" for "already"), and phonetic substitutions ("rel" for "real"). To mitigate:
+1. **Spell out short common words letter-by-letter** in the prompt when embedded in longer text (e.g., "T-O" not "to", "A-L-R-E-A-D-Y" not "already")
+2. **Add "CRITICAL SPELLING: Double-check every word is spelled correctly"** to every prompt that includes text in the image
+3. **Generate 2-3 variants** and visually inspect each for spelling errors before using
+4. **Add a human review step** specifically for text-in-image accuracy before uploading/scheduling
+5. **For guaranteed accuracy**: generate the image WITHOUT text, then add text programmatically (HTML canvas, ImageMagick, sharp, etc.) as a post-processing step. This is the recommended approach for any text longer than 3 words.
+
 ### Prompt Templates by Content Type
 
 #### Quote Card

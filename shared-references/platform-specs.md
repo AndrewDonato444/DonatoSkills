@@ -211,6 +211,7 @@
 ### Platform-Specific Quirks
 
 - **"See more" truncation:** Only ~210 characters show on desktop (~140 on mobile) before the fold. Your hook must be above this line.
+- **Practical character limit with media: 1,248 characters.** While the theoretical limit is 3,000 characters, posts with media attachments (images/videos) are limited to ~1,248 characters in practice. Posts exceeding this may be truncated or rejected. For text-only posts, the full 3,000 characters are available.
 - **Carousel dominance:** LinkedIn carousels (uploaded as PDF or native carousel) consistently outperform single-image posts for engagement.
 - **4:5 portrait is king:** The 1080x1350 vertical format takes up significantly more mobile feed real estate, driving higher engagement.
 - **No hashtag limit:** But 3-5 targeted hashtags is the recommended sweet spot.
@@ -444,7 +445,7 @@
 | Twitter/X (premium) | 25,000 | ~280 chars before fold |
 | Instagram | 2,200 (caption) | 125 chars |
 | TikTok | 4,000 | Varies by device |
-| LinkedIn | 3,000 | ~210 (desktop) / ~140 (mobile) |
+| LinkedIn | 3,000 (1,248 with media) | ~210 (desktop) / ~140 (mobile) |
 | Facebook | 63,206 | ~477 (desktop) / ~125 (mobile) |
 | YouTube Shorts | 100 (title) / 5,000 (desc) | ~125 chars (description) |
 | Threads | 500 (+10,000 attachment) | N/A |

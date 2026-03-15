@@ -310,11 +310,36 @@ Create a `scripts/generate-voiceover.ts` in the video project:
 
 ```typescript
 import { GoogleGenAI } from "@google/genai";
-import wav from "wav";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
+if (!process.env.GEMINI_API_KEY) {
+  throw new Error("GEMINI_API_KEY is not set. Add it to your .env file or export it in your shell.");
+}
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+// Write raw PCM data as a WAV file (24kHz, 16-bit, mono).
+// DO NOT use the "wav" npm package — it doesn't reliably install across environments.
+function writeWavSync(filepath: string, pcmData: Buffer, sampleRate = 24000, channels = 1, bitDepth = 16) {
+  const byteRate = sampleRate * channels * (bitDepth / 8);
+  const blockAlign = channels * (bitDepth / 8);
+  const dataSize = pcmData.length;
+  const header = Buffer.alloc(44);
+  header.write("RIFF", 0);
+  header.writeUInt32LE(36 + dataSize, 4);
+  header.write("WAVE", 8);
+  header.write("fmt ", 12);
+  header.writeUInt32LE(16, 16);        // PCM chunk size
+  header.writeUInt16LE(1, 20);         // PCM format
+  header.writeUInt16LE(channels, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(byteRate, 28);
+  header.writeUInt16LE(blockAlign, 32);
+  header.writeUInt16LE(bitDepth, 34);
+  header.write("data", 36);
+  header.writeUInt32LE(dataSize, 40);
+  fs.writeFileSync(filepath, Buffer.concat([header, pcmData]));
+}
 
 interface SceneScript {
   name: string;       // e.g., "scene-1-hook"
@@ -329,11 +354,14 @@ async function generateVoiceover(scenes: SceneScript[], voice: string = "Kore") 
   const manifest: Record<string, { file: string; durationSec: number }> = {};
 
   for (const scene of scenes) {
-    console.log(`🎙️ Generating: ${scene.name}...`);
+    console.log(`Generating: ${scene.name}...`);
     const prompt = scene.direction
       ? `Speak in a ${scene.direction} tone:\n${scene.script}`
       : scene.script;
 
+    // DO NOT REPLACE this call with a retry wrapper — linters may rename it,
+    // causing infinite recursion. If you add retry logic, bind the API method
+    // to a separate variable first (see "Retry Logic" section below).
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
       contents: [{ parts: [{ text: prompt }] }],
@@ -352,13 +380,7 @@ async function generateVoiceover(scenes: SceneScript[], voice: string = "Kore") 
 
     // Write as WAV (24kHz, 16-bit, mono)
     const filepath = path.join(outputDir, `${scene.name}.wav`);
-    const writer = new wav.FileWriter(filepath, {
-      sampleRate: 24000,
-      channels: 1,
-      bitDepth: 16,
-    });
-    writer.write(audioBuffer);
-    writer.end();
+    writeWavSync(filepath, audioBuffer);
 
     // Calculate duration from PCM data
     const durationSec = audioBuffer.length / (24000 * 2); // 24kHz, 16-bit = 2 bytes/sample
@@ -369,7 +391,7 @@ async function generateVoiceover(scenes: SceneScript[], voice: string = "Kore") 
   // Write timing manifest for Remotion to consume
   const manifestPath = path.join(outputDir, "manifest.json");
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
-  console.log(`\n📋 Timing manifest: ${manifestPath}`);
+  console.log(`Timing manifest: ${manifestPath}`);
 
   return manifest;
 }
@@ -406,21 +428,62 @@ generateVoiceover(scenes).catch(console.error);
 
 See `references/tts-best-practices.md` for the full voice list (30 voices), script writing tips, and direction prompt patterns.
 
+### Voiceover Production Rules
+
+**Per-scene audio is the default.** Always generate individual WAV files per scene (not one combined full-voiceover.wav). A single full track drifts from visual scene timings because AI-generated pacing differs from the sum of individual scene durations. Each scene gets its own `<Audio>` element inside its own `<Sequence>`, synced to the exact frame.
+
+**Wire audio into components immediately.** After generating voiceover WAV files, update the video component's `<Audio>` elements in the same step. Do NOT leave audio commented out or referencing placeholder files — this is a common source of silent videos.
+
+**Gemini TTS rate limit: 10 requests/minute/model.** When generating voiceover for multiple scenes:
+- Generate scenes **sequentially** (not in parallel)
+- If you hit a 429, retry with exponential backoff (15s, 30s, 45s)
+- When the content-engine orchestrates multiple videos with voiceover, generate them **one video at a time**, not in parallel
+
+**Linter/formatter recursion hazard.** If you add retry logic around `ai.models.generateContent(...)`, linters may auto-rename the inner API call to match the wrapper function name, causing infinite recursion (`RangeError: Maximum call stack size exceeded`). To prevent this:
+```typescript
+// SAFE: bind the API method to a separate variable
+const callTTS = ai.models.generateContent.bind(ai.models);
+
+async function generateWithRetry(
+  params: Parameters<typeof ai.models.generateContent>[0],
+  retries = 3,
+): ReturnType<typeof ai.models.generateContent> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await callTTS(params); // DO NOT REPLACE with generateWithRetry
+    } catch (e: unknown) {
+      const status = (e as { status?: number }).status;
+      if (status === 429 && i < retries - 1) {
+        await new Promise(r => setTimeout(r, 15000 * (i + 1)));
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw new Error(`generateWithRetry: all ${retries} attempts failed`);
+}
+```
+
+**Always use `npx tsx --no-cache`** when running TypeScript scripts. Without `--no-cache`, tsx may use stale transpiled output that doesn't reflect your latest source changes.
+
 ### Step 3: Size Scenes to Audio
 
-After generating audio, read the timing manifest and set each scene's `durationInFrames` to match:
+After generating audio, read the timing manifest (`public/audio/manifest.json`) and set each scene's `durationInFrames` to match. Add a small buffer (0.3s = ~9 frames) between scenes for breathing room:
 
 ```tsx
 import { Audio, staticFile, Sequence } from "remotion";
 import manifest from "../../public/audio/manifest.json";
 
-// Convert audio duration to frames
 const fps = 30;
-const scene1Frames = Math.ceil(manifest["scene-1-hook"].durationSec * fps);
-const scene2Frames = Math.ceil(manifest["scene-2-body"].durationSec * fps);
-const scene3Frames = Math.ceil(manifest["scene-3-cta"].durationSec * fps);
+const BUFFER_FRAMES = Math.ceil(0.3 * fps); // 0.3s gap between scenes
 
-// Build sequences synced to audio
+// Read actual audio durations from manifest — DO NOT hardcode durations
+const scene1Frames = Math.ceil(manifest["scene-1-hook"].durationSec * fps) + BUFFER_FRAMES;
+const scene2Frames = Math.ceil(manifest["scene-2-body"].durationSec * fps) + BUFFER_FRAMES;
+const scene3Frames = Math.ceil(manifest["scene-3-cta"].durationSec * fps); // no buffer on final scene
+
+// Each scene gets its OWN <Audio> element inside its <Sequence>.
+// Do NOT use a single combined audio track — it drifts from visual timing.
 <Sequence from={0} durationInFrames={scene1Frames}>
   <Audio src={staticFile("audio/scene-1-hook.wav")} />
   <HookScene />
@@ -435,7 +498,7 @@ const scene3Frames = Math.ceil(manifest["scene-3-cta"].durationSec * fps);
 </Sequence>
 ```
 
-The total composition `durationInFrames` should be the sum of all scene frames.
+The total composition `durationInFrames` should be the sum of all scene frames. Update `constants.ts` scene timings to match these manifest-derived values — never hardcode durations that conflict with actual audio lengths.
 
 ### Script-Only Mode
 
@@ -502,8 +565,7 @@ npm i @google/genai
 
 If using AI voiceover, also install:
 ```bash
-npm i @google/genai wav
-npm i -D @types/wav
+npm i @google/genai
 ```
 
 File structure:
@@ -561,16 +623,30 @@ Config.setOverwriteOutput(true);
 
 ```bash
 #!/bin/bash
+set -euo pipefail
+
+# Load env vars if .env exists (handles spaces/quotes safely)
+load_env() {
+  local envfile="$1"
+  if [ -f "$envfile" ]; then
+    set -a
+    source "$envfile"
+    set +a
+  fi
+}
+load_env .env
+load_env ../../.env
+
 # Generate AI voiceover first (if applicable — audio drives timing)
 if [ -f scripts/generate-voiceover.ts ] && [ -n "$GEMINI_API_KEY" ]; then
-  echo "🎙️ Generating AI voiceover..."
-  npx tsx scripts/generate-voiceover.ts
+  echo "Generating AI voiceover..."
+  npx tsx --no-cache scripts/generate-voiceover.ts
 fi
 
 # Generate AI assets (if applicable)
 if [ -f scripts/generate-assets.ts ] && [ -n "$GEMINI_API_KEY" ]; then
-  echo "🍌 Generating AI visuals..."
-  npx tsx scripts/generate-assets.ts
+  echo "Generating AI visuals..."
+  npx tsx --no-cache scripts/generate-assets.ts
 fi
 
 # Render the video

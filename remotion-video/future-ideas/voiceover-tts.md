@@ -66,17 +66,40 @@ Zephyr, Puck (upbeat), Charon (deep), Kore (firm), Fenrir, Leda, Orus, Aoede, Ca
 
 **Multi-speaker:** Up to 2 speakers per generation (good for dialogue or interview format)
 
-**Output format:** Raw PCM → WAV (24kHz, 16-bit, mono)
+**Output format:** Raw PCM → WAV (24kHz, 16-bit, mono) via `writeWavSync()` helper (do NOT use the `wav` npm package)
 
-**SDK:** Same `@google/genai` package used for Nano Banana
+**SDK:** Same `@google/genai` package used for Nano Banana (no additional dependencies needed for audio)
 
 ## Code Example
 
 ```typescript
 import { GoogleGenAI } from "@google/genai";
-import wav from "wav";
+import * as fs from "node:fs";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+// Write raw PCM data as a WAV file (24kHz, 16-bit, mono).
+// DO NOT use the "wav" npm package — it doesn't reliably install.
+function writeWavSync(filepath: string, pcmData: Buffer, sampleRate = 24000, channels = 1, bitDepth = 16) {
+  const byteRate = sampleRate * channels * (bitDepth / 8);
+  const blockAlign = channels * (bitDepth / 8);
+  const dataSize = pcmData.length;
+  const header = Buffer.alloc(44);
+  header.write("RIFF", 0);
+  header.writeUInt32LE(36 + dataSize, 4);
+  header.write("WAVE", 8);
+  header.write("fmt ", 12);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(channels, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(byteRate, 28);
+  header.writeUInt16LE(blockAlign, 32);
+  header.writeUInt16LE(bitDepth, 34);
+  header.write("data", 36);
+  header.writeUInt32LE(dataSize, 40);
+  fs.writeFileSync(filepath, Buffer.concat([header, pcmData]));
+}
 
 // Generate voiceover for one scene
 const response = await ai.models.generateContent({
@@ -94,7 +117,7 @@ const response = await ai.models.generateContent({
 
 const data = response.candidates[0].content.parts[0].inlineData.data;
 const audioBuffer = Buffer.from(data, "base64");
-// Save as WAV (24kHz, 16-bit, mono)
+writeWavSync("output.wav", audioBuffer);
 ```
 
 ## Using in Remotion

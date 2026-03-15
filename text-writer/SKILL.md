@@ -256,7 +256,8 @@ RT the first tweet to help someone else.
 ### LinkedIn
 
 **Constraints:**
-- 3000 characters max
+- 3000 characters theoretical max, but **1248 characters practical limit** for posts with media attachments (images/videos). Posts exceeding 1248 chars with media get truncated or rejected by some clients.
+- For text-only posts, aim for under 1500 characters for best engagement
 - First 2 lines visible before "see more" — the hook MUST be in these 2 lines
 - 3-5 hashtags (professional/industry terms)
 
