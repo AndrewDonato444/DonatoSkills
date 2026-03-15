@@ -65,6 +65,9 @@ Before asking questions, check:
 2. **Project context** — Read `.specs/vision.md` and `.specs/personas/*.md` if they exist. These inform tone, audience, and messaging.
 3. **Design tokens** — Brand voice and personality from `.specs/design-system/tokens.md`
 4. **Hook best practices** — Read `shared-references/hook-writing.md` before writing any caption. The first line of every caption IS the hook.
+5. **Platform specs** — Read `shared-references/platform-specs.md` for character limits, hashtag limits, and media constraints per platform.
+6. **Caption formulas** — Read `shared-references/caption-writing.md` for platform-specific caption structures, CTA patterns, and formatting rules.
+7. **Content pillars** — Read `shared-references/content-pillars.md` for pillar alignment if posting as part of a content strategy.
 
 ### Step 2: Ask Questions
 

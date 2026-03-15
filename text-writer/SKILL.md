@@ -55,7 +55,10 @@ Before asking the user anything, silently read whatever project context exists:
 **Always check:**
 
 4. **`shared-references/hook-writing.md`** — Platform-specific hook best practices. Read this before writing any post.
-5. **Previous conversation** — if the user just described their topic, you already know it.
+5. **`shared-references/platform-specs.md`** — Character limits, hashtag limits, and text truncation points per platform. Use this to ensure posts fit within platform constraints.
+6. **`shared-references/caption-writing.md`** — Caption structure formulas, CTA patterns, hashtag strategies, and formatting rules per platform. This is your primary writing playbook.
+7. **`shared-references/content-pillars.md`** — Content pillar frameworks. When creating posts as part of a content strategy, align the post to the appropriate pillar.
+8. **Previous conversation** — if the user just described their topic, you already know it.
 
 **Use everything you find** to pre-fill answers below. The more you absorb silently, the fewer questions you need to ask.
 

@@ -76,7 +76,10 @@ Before asking the user anything, silently read whatever project context exists:
 **Always check:**
 
 4. **`shared-references/hook-writing.md`** — If the image includes text, the text should follow hook best practices for the target platform.
-5. **Previous conversation** — if the user just described what they want, you already know it.
+5. **`shared-references/platform-specs.md`** — Image dimensions, aspect ratios, file size limits, and supported formats per platform. Use this to set the correct output dimensions.
+6. **`shared-references/caption-writing.md`** — Caption formulas per platform. When the image will be posted with a caption, the text overlay and caption should complement each other.
+7. **`shared-references/content-pillars.md`** — Content pillar frameworks. When creating images as part of a content strategy, align the visual to the appropriate pillar.
+8. **Previous conversation** — if the user just described what they want, you already know it.
 
 **Use everything you find** to pre-fill answers below.
 

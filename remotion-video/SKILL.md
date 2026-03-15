@@ -34,9 +34,14 @@ If any required parameter is missing, fall back to the interactive question flow
 
 ---
 
-## Hook Writing
+## Shared References
 
-Before writing any video script, voiceover, or first-scene text, read `shared-references/hook-writing.md` for platform-specific hook best practices. The first 3-5 seconds of every video IS the hook — it must stop the scroll.
+Before building any video, read these shared references:
+
+1. **`shared-references/hook-writing.md`** — Hook best practices per platform. The first 3-5 seconds of every video IS the hook — it must stop the scroll.
+2. **`shared-references/platform-specs.md`** — Video dimensions, max durations, aspect ratios, file size limits, and recommended engagement durations per platform. Use this to set the correct resolution, fps, and duration for the target platform.
+3. **`shared-references/caption-writing.md`** — Caption formulas per platform. When the video will be posted with a caption (e.g., via content-engine), the caption structure should complement the video hook.
+4. **`shared-references/content-pillars.md`** — Content pillar frameworks. When creating videos as part of a content strategy, align the video's message to the appropriate pillar.
 
 ---
 

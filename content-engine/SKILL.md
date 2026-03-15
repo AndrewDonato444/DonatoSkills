@@ -177,7 +177,12 @@ Determine which skill to invoke based on the item's `type`:
 
 **Invoking a creation skill in orchestrated mode:**
 
-**Before writing any hook, caption, or opening line**, read `shared-references/hook-writing.md` for platform-specific best practices.
+**Before creating any content**, read these shared references:
+
+1. **`shared-references/hook-writing.md`** — Hook best practices per platform
+2. **`shared-references/platform-specs.md`** — Dimensions, durations, character limits, file size limits per platform. Use this to set correct params when invoking creation skills.
+3. **`shared-references/caption-writing.md`** — Caption structure formulas, CTA patterns, hashtag strategies per platform. Use this when writing captions for scheduled posts.
+4. **`shared-references/content-pillars.md`** — Pillar frameworks, rotation strategies, and cadence recommendations. Use this when generating the content calendar to ensure proper pillar distribution and posting frequency.
 
 When invoking `remotion-video`, provide ALL of these in your prompt so it skips questions:
 - Platform and dimensions
