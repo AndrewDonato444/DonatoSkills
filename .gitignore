@@ -1,0 +1,19 @@
+# API Keys
+*.env
+.env.*
+**/GEMINI_API_KEY*
+
+# Don't commit generated video assets
+**/out/*.mp4
+**/public/generated/*.png
+**/public/audio/*.wav
+**/voice-samples/
+
+# Node
+node_modules/
+dist/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
