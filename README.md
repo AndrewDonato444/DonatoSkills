@@ -151,15 +151,43 @@ The `shared-references/` directory contains cross-cutting knowledge used by all 
 
 - **hook-writing.md** — Platform-specific best practices for writing hooks (first lines, opening scenes, text overlays). Every skill references this before writing any hook or opening line.
 
+## Multi-Project Support
+
+DonatoSkills supports managing content for **multiple brands/projects** from a single installation. The `projects.json` file in the repo root is the central registry.
+
+### How it works
+
+1. **One project?** Skills auto-select it — zero friction.
+2. **Multiple projects?** Skills auto-detect based on your working directory, or ask which project you mean.
+3. **Each project maps to**: specific Buffer channels, brand context, API keys, default tone/pillars.
+
+### Adding a project
+
+Edit `projects.json` or say "add a new project" and the skill will walk you through it.
+
+### Separate Buffer accounts
+
+Each project can use a different Buffer API key. Set `buffer.api_key_env` per project:
+
+```json
+{
+  "my-brand": { "buffer": { "api_key_env": "BUFFER_API_KEY" } },
+  "client-xyz": { "buffer": { "api_key_env": "BUFFER_API_KEY_CLIENT" } }
+}
+```
+
+See `shared-references/project-registry.md` for the full schema and examples.
+
 ## Project Context Absorption
 
 All skills silently check for project context before asking questions:
 
+- **`projects.json`** — Which project/brand, which channels, which API keys
 - **`.specs/vision.md`** — Product description, positioning, personality
 - **`.specs/personas/*.md`** — Target audience profiles
 - **`.specs/design-system/tokens.md`** — Brand colors, typography, visual style
 
-If these files exist in the project where you invoke a skill, the content will automatically match your brand. If they don't exist, the skill will ask you for context.
+If these files exist for the active project, the content will automatically match your brand. If they don't exist, the skill will ask you for context.
 
 ## Output Locations
 

@@ -8,6 +8,7 @@ Calendars are stored at `content-engine/calendars/<campaign-slug>/calendar.json`
 {
   "campaign": {
     "name": "Campaign Name",
+    "project_id": "project-slug",
     "brand": "Brand Name",
     "created": "2026-03-15",
     "timeframe": {

@@ -34,6 +34,29 @@ If any required parameter is missing, fall back to the interactive question flow
 
 ---
 
+## Project Registry (Multi-Project Support)
+
+**Before generating any image**, resolve which project/brand this is for.
+
+### Step 0: Resolve Active Project
+
+1. **Read `projects.json`** from the DonatoSkills root directory (`~/DonatoSkills/projects.json`)
+2. **Resolve the active project:**
+   - **CWD match** — Current directory is inside a project's `specs_path` → auto-select (most common — zero friction)
+   - **Orchestrated** — Content-engine passed `project_id` → use directly
+   - **Explicit** — User said "for [project name]" → match against project names/slugs
+   - **Single project** — Only one project in registry → use it automatically
+   - **Ask** — Multiple projects, can't auto-detect → "Which project is this image for?"
+
+3. **Use the project's brand context:**
+   - If `specs_path` is set → read vision.md, personas, and design tokens from there
+   - If `brand_brief` is set → read that for tone, audience, and visual style
+   - Apply brand colors and visual identity to image generation prompts
+
+See `shared-references/project-registry.md` for the full resolution logic.
+
+---
+
 ## Prerequisites
 
 ### Gemini API Key
@@ -59,9 +82,14 @@ npm i @google/genai
 
 ### Step 1: Absorb Context (silent — no questions)
 
-Before asking the user anything, silently read whatever project context exists:
+Before asking the user anything, silently read whatever project context exists. **The active project (resolved in Step 0) determines where to find brand context.**
 
-**Brand & Audience (SDD projects):**
+**From the active project (`projects.json`):**
+- If `specs_path` is set → read SDD files from there
+- If `brand_brief` is set → read that for brand context
+- Apply `defaults.tone` as starting default for style questions
+
+**Brand & Audience (from project's specs_path):**
 
 1. **`.specs/vision.md`** — What the product is, who it's for, its personality and positioning. This shapes the visual style and messaging.
 
@@ -69,7 +97,7 @@ Before asking the user anything, silently read whatever project context exists:
 
 3. **`.specs/design-system/tokens.md`** — Brand colors, typography, visual style. These DIRECTLY inform image generation — colors, fonts, mood.
 
-**Non-SDD projects:**
+**Non-SDD projects (no specs_path):**
 - Read `README.md`, landing page copy, or any product description
 - Check for brand guidelines, style guides, or marketing docs
 

@@ -1,0 +1,40 @@
+{
+  "_schema": "DonatoSkills Project Registry v1",
+  "_docs": "shared-references/project-registry.md",
+
+  "projects": {
+    "donatos-deals": {
+      "name": "Donato's Deals",
+      "description": "Tech deals, vibe coding, and AI content for the @donatosdeals audience",
+      "specs_path": null,
+      "brand_brief": "content-engine/calendars/vibe-coding-mar15/brand-brief.md",
+      "buffer": {
+        "api_key_env": "BUFFER_API_KEY",
+        "organization_id": null,
+        "channels": {
+          "twitter": {
+            "id": "69b6156b7be9f8b1715935c5",
+            "name": "donatosdeals",
+            "username": "@donatosdeals"
+          }
+        }
+      },
+      "cloudinary": {
+        "cloud_name_env": "CLOUDINARY_CLOUD_NAME",
+        "api_key_env": "CLOUDINARY_API_KEY",
+        "api_secret_env": "CLOUDINARY_API_SECRET"
+      },
+      "defaults": {
+        "tone": "casual, funny, confident",
+        "content_pillars": ["product", "education", "personality", "social-proof"],
+        "posting_frequency": {
+          "twitter": "daily"
+        }
+      },
+      "created": "2026-03-15",
+      "updated": "2026-03-15"
+    }
+  },
+
+  "default_project": "donatos-deals"
+}

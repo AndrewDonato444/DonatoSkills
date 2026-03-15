@@ -21,39 +21,56 @@ The user tells you about their brand and goals. You build and execute the plan.
 
 ---
 
+## Project Registry (Multi-Project Support)
+
+**Before doing anything else**, read the project registry to determine which project/brand you're creating content for.
+
+### Step 0: Resolve Active Project
+
+1. **Read `projects.json`** from the DonatoSkills root directory (`~/DonatoSkills/projects.json`)
+2. **Read `shared-references/project-registry.md`** for the full resolution logic
+3. **Resolve the active project** using this priority:
+   - **CWD match** — Current directory is inside a project's `specs_path` → auto-select (most common — zero friction)
+   - **Explicit** — User said "for [project name]" → match against project names/slugs
+   - **Single project** — Only one project in registry → use it automatically
+   - **Ask** — Multiple projects, can't auto-detect → "Which project is this for? I see: [list]"
+
+4. **Once resolved, use the project's configuration for EVERYTHING:**
+   - **Buffer API key**: `process.env[project.buffer.api_key_env]`
+   - **Channels**: Only plan content for channels in the project's `buffer.channels`
+   - **Cloudinary**: Use `project.cloudinary.*_env` for media upload credentials
+   - **Brand context**: Read from `project.specs_path` or `project.brand_brief`
+   - **Defaults**: Pre-fill tone, pillars, and frequency from `project.defaults`
+
+5. **Include `project_id`** in every `calendar.json` and pass it to all orchestrated skill invocations
+
+### Why This Matters for Content-Engine
+
+As the orchestrator, you set the project context for all downstream skills. When you invoke remotion-video, image-gen, text-writer, or social-media in orchestrated mode, **include the project_id** so those skills load the correct brand context and API keys without asking.
+
+---
+
 ## Prerequisites
 
 ### Required API Keys
 
-All keys should be in the project `.env` file:
+All keys should be in the project `.env` file. The **env var names come from the active project's configuration** in `projects.json`:
 
-| Key | Service | Purpose |
-|-----|---------|---------|
-| `BUFFER_API_KEY` | Buffer | Social media scheduling |
-| `GEMINI_API_KEY` | Google Gemini | Video voiceover (TTS) + image generation |
-| `CLOUDINARY_CLOUD_NAME` | Cloudinary | Media hosting |
-| `CLOUDINARY_API_KEY` | Cloudinary | Media hosting |
-| `CLOUDINARY_API_SECRET` | Cloudinary | Media hosting |
+| Key (default) | Service | Purpose | Project Config Field |
+|-----|---------|---------|---------------------|
+| `BUFFER_API_KEY` | Buffer | Social media scheduling | `buffer.api_key_env` |
+| `GEMINI_API_KEY` | Google Gemini | Video voiceover (TTS) + image generation | (global) |
+| `CLOUDINARY_CLOUD_NAME` | Cloudinary | Media hosting | `cloudinary.cloud_name_env` |
+| `CLOUDINARY_API_KEY` | Cloudinary | Media hosting | `cloudinary.api_key_env` |
+| `CLOUDINARY_API_SECRET` | Cloudinary | Media hosting | `cloudinary.api_secret_env` |
 
-If any key is missing, tell the user which ones are needed and how to get them.
+If any key is missing, tell the user which ones are needed and how to get them. Reference the project name so they know which account to configure.
 
 ### Buffer Channels
 
-Social media channels must be connected through the Buffer web app. Query connected channels before planning:
+**Do NOT query Buffer for the channel list.** The project registry (`projects.json`) already contains the channel IDs for the active project. Use those directly.
 
-```bash
-# Get org ID
-curl -s -X POST https://api.buffer.com \
-  -H "Authorization: Bearer $BUFFER_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "{ account { organizations { id } } }"}'
-
-# List channels
-curl -s -X POST https://api.buffer.com \
-  -H "Authorization: Bearer $BUFFER_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "query($input: ChannelsInput!) { channels(input: $input) { id service name metadata { ... on TwitterMetadata { twitterUsername } ... on InstagramMetadata { instagramAccountType } ... on TikTokMetadata { tiktokUsername } ... on LinkedInMetadata { linkedinAccountType } ... on YouTubeMetadata { youtubeChannelTitle } ... on ThreadsMetadata { threadsUsername } ... on BlueskyMetadata { blueskyUsername } } } }", "variables": {"input": {"organizationId": "ORG_ID"}}}'
-```
+Only query Buffer to verify channels still exist or to discover new channels when the user says "sync channels" or "add a new channel".
 
 ---
 
@@ -61,38 +78,43 @@ curl -s -X POST https://api.buffer.com \
 
 ### Step 1: Absorb Context (silent — no questions)
 
-Before asking the user anything, silently read whatever project context exists:
+Before asking the user anything, silently read whatever project context exists. **The active project (resolved in Step 0) provides the starting point for all context.**
 
-**Brand & Audience (SDD projects):**
+**From the active project (`projects.json`):**
 
-1. **`.specs/vision.md`** -- What the product is, who it's for, its personality and positioning. This shapes the *content and tone* of all posts.
+1. **`project.defaults`** -- Pre-filled tone, content pillars, and posting frequency. These are your starting defaults — the user can override.
+2. **`project.buffer.channels`** -- Which platforms/channels to plan for. Don't ask "where should I post?" if the project already defines channels.
+3. **`project.brand_brief`** -- If set, read this for brand analysis (skip the brand analysis step).
 
-2. **`.specs/personas/*.md`** -- Who the target users are. Personas contain vocabulary, patience level, and frustrations. These inform which content pillars resonate and what language to use in captions.
+**Brand & Audience (from project's specs_path):**
 
-3. **`.specs/design-system/tokens.md`** -- Brand colors, typography, visual style. These inform video styles, image aesthetics, and overall visual consistency across content.
+4. **`.specs/vision.md`** -- What the product is, who it's for, its personality and positioning. This shapes the *content and tone* of all posts.
 
-**Non-SDD projects:**
+5. **`.specs/personas/*.md`** -- Who the target users are. Personas contain vocabulary, patience level, and frustrations.
+
+6. **`.specs/design-system/tokens.md`** -- Brand colors, typography, visual style. These inform video styles, image aesthetics, and overall visual consistency.
+
+**Non-SDD projects (no specs_path):**
 - Read `README.md`, landing page copy, or any product description
 - Check for brand guidelines, style guides, or marketing docs
 
 **Always check:**
 
-4. **Buffer channels** -- query the API to see what platforms are connected
-5. **Existing calendar** -- check `content-engine/calendars/` for active campaigns
-6. **Previous conversation** -- if the user just described their product, you already know it
+7. **Existing calendars** -- check `content-engine/calendars/` for active campaigns belonging to this project (match by `project_id` in calendar.json)
+8. **Previous conversation** -- if the user just described their product, you already know it
 
-**Use everything you find** to pre-fill answers to the questions below. The more you absorb silently, the fewer questions you need to ask. If vision + personas give you brand, audience, tone, and content pillars, you may only need to ask about timeframe, frequency, and mode.
+**Use everything you find** to pre-fill answers to the questions below. The more you absorb silently, the fewer questions you need to ask. If the project registry + vision + personas give you brand, audience, tone, channels, and content pillars, you may only need to ask about timeframe, frequency, and mode.
 
 ### Step 2: Ask Questions
 
 Group these conversationally. Skip what you already know.
 
-1. **Brand/Product** -- "What's the brand or product? (URL, description, or should I read your project?)"
+1. **Brand/Product** -- Skip if the active project has a `brand_brief` or `specs_path` — you already know the brand. Otherwise: "What's the brand or product? (URL, description, or should I read your project?)"
    - If given a URL, analyze the landing page for: value prop, target audience, tone, visual style, key features
    - If given a description, extract the same
    - If the project has `.specs/vision.md`, read it
 
-2. **Channels** -- "I can see you have [X, Y, Z] connected in Buffer. Want to post to all of them, or a subset?"
+2. **Channels** -- Read from the active project's `buffer.channels`. If channels exist: "I see [project name] has [X, Y, Z] set up. Want to post to all of them, or a subset?" If no channels in the registry: query Buffer and ask the user to pick channels, then offer to save them to `projects.json`.
 
 3. **Timeframe** -- "How far out should I plan? (1 week, 2 weeks, 1 month)"
 
@@ -143,6 +165,8 @@ Ask: "Here's the content calendar. Want to adjust anything, or should I start cr
 ## Content Calendar Persistence
 
 Calendars are stored as JSON in `content-engine/calendars/<campaign-slug>/calendar.json`.
+
+**Always include `project_id`** in the calendar JSON so calendars are scoped to projects. This enables per-project analytics, resume, and history.
 
 See `references/calendar-schema.md` for the full schema.
 

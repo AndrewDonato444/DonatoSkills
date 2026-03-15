@@ -2,6 +2,21 @@
 
 This file documents the interface for each content creation skill the content-engine can orchestrate.
 
+## Project Context in Orchestrated Mode
+
+**All orchestrated invocations should include `project_id`** so downstream skills load the correct brand context and API keys without asking the user.
+
+Add this line to every orchestrated invocation template:
+```
+- Project: [project_id from projects.json]
+```
+
+The downstream skill will:
+1. Read `projects.json` and find the matching project
+2. Load brand context from `specs_path` or `brand_brief`
+3. Use the project's API keys and channel IDs
+4. Apply project defaults for tone, pillars, etc.
+
 ---
 
 ## remotion-video

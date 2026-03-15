@@ -34,6 +34,29 @@ If any required parameter is missing, fall back to the interactive question flow
 
 ---
 
+## Project Registry (Multi-Project Support)
+
+**Before building any video**, resolve which project/brand this is for.
+
+### Step 0: Resolve Active Project
+
+1. **Read `projects.json`** from the DonatoSkills root directory (`~/DonatoSkills/projects.json`)
+2. **Resolve the active project:**
+   - **CWD match** — Current directory is inside a project's `specs_path` → auto-select (most common — zero friction)
+   - **Orchestrated** — Content-engine passed `project_id` → use directly
+   - **Explicit** — User said "for [project name]" → match against project names/slugs
+   - **Single project** — Only one project in registry → use it automatically
+   - **Ask** — Multiple projects, can't auto-detect → "Which project is this video for?"
+
+3. **Use the project's brand context:**
+   - If `specs_path` is set → read vision.md, personas, and design tokens from there
+   - If `brand_brief` is set → read that for tone, audience, and visual style
+   - Apply `defaults.tone` and `defaults.content_pillars` as starting defaults
+
+See `shared-references/project-registry.md` for the full resolution logic.
+
+---
+
 ## Shared References
 
 Before building any video, read these shared references:
@@ -51,9 +74,14 @@ Before building any video, read these shared references:
 
 ### Step 1: Absorb Project Identity (silent — no questions)
 
-Before asking the user anything, silently read whatever project context exists:
+Before asking the user anything, silently read whatever project context exists. **The active project (resolved in Step 0) determines where to find brand context.**
 
-**Brand & Audience (SDD projects):**
+**From the active project (`projects.json`):**
+- If `specs_path` is set → read SDD files from there
+- If `brand_brief` is set → read that for brand context
+- Apply `defaults.tone` as starting default for style questions
+
+**Brand & Audience (from project's specs_path):**
 
 1. **`.specs/vision.md`** — What the product is, who it's for, its personality and positioning. This shapes the *content and tone* of the video.
 
@@ -61,7 +89,7 @@ Before asking the user anything, silently read whatever project context exists:
 
 3. **`.specs/design-system/tokens.md`** — Colors, typography, spacing, and personality. This shapes the *visual style*.
 
-**Non-SDD projects:**
+**Non-SDD projects (no specs_path):**
 
 4. **`tailwind.config.*`** — Tailwind theme with custom colors/fonts
 5. **`src/styles/theme.*` or `src/lib/theme.*`** — Custom theme files

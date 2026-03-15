@@ -34,22 +34,53 @@ If any required parameter is missing, fall back to the interactive question flow
 
 ---
 
+## Project Registry (Multi-Project Support)
+
+**Before doing anything else**, read the project registry to determine which project/brand you're working with.
+
+### Step 0: Resolve Active Project
+
+1. **Read `projects.json`** from the DonatoSkills root directory (`~/DonatoSkills/projects.json`)
+2. **Read `shared-references/project-registry.md`** for the full resolution logic
+3. **Resolve the active project** using this priority:
+   - **CWD match** — Current directory is inside a project's `specs_path` → auto-select (most common — zero friction)
+   - **Orchestrated** — Content-engine passed `project_id` → use directly
+   - **Explicit** — User said "for [project name]" → match against project names/slugs
+   - **Single project** — Only one project in registry → use it automatically
+   - **Ask** — Multiple projects, can't auto-detect → "Which project is this for? I see: [list]"
+
+4. **Once resolved, use the project's configuration:**
+   - **Buffer API key**: Read from `process.env[project.buffer.api_key_env]` (NOT hardcoded `BUFFER_API_KEY`)
+   - **Channels**: Only show/use channels listed in the project's `buffer.channels` — do NOT query all Buffer channels
+   - **Brand context**: Read from `project.specs_path` or `project.brand_brief`
+   - **Defaults**: Pre-fill tone and content pillars from `project.defaults`
+
+5. **Tag all posts** with `source: "donatoskills-{project_slug}"` so analytics can trace posts back to projects
+
+### Orchestrated Mode with Project Context
+
+When in orchestrated mode, the content-engine will include `project_id` in the invocation. Use it to load the correct project without asking.
+
+---
+
 ## Prerequisites
 
 ### Buffer API Key
 
-This skill requires a `BUFFER_API_KEY` environment variable (stored in the project `.env` file). The user needs to:
+This skill requires a Buffer API key environment variable. The **env var name comes from the active project's** `buffer.api_key_env` field in `projects.json` (defaults to `BUFFER_API_KEY` if not set).
+
+The user needs to:
 
 1. Go to [Buffer API Settings](https://publish.buffer.com/settings/api)
 2. Generate an API token
-3. It's already set up if the `.env` file contains `BUFFER_API_KEY`
+3. Add it to the `.env` file with the name specified in `projects.json`
 
 If the key is missing, tell the user:
-> "I need a Buffer API key to schedule posts. You can get one from publish.buffer.com/settings/api — want me to walk you through it?"
+> "I need a Buffer API key to schedule posts for [project name]. You can get one from publish.buffer.com/settings/api — want me to walk you through it?"
 
 ### Connected Channels
 
-Buffer requires social media channels to be connected through the Buffer web app. This skill can list connected channels but cannot connect new ones via API.
+Buffer requires social media channels to be connected through the Buffer web app. This skill reads available channels from `projects.json` — it does NOT need to query Buffer for the channel list (the registry already has channel IDs). If a channel in the registry returns an error from Buffer, it may have been disconnected.
 
 ---
 
@@ -61,13 +92,14 @@ Buffer requires social media channels to be connected through the Buffer web app
 
 Before asking questions, check:
 
-1. **Was content just created?** — If a video was just rendered or an image was just made, that's the content. Don't ask "what do you want to post?"
-2. **Project context** — Read `.specs/vision.md` and `.specs/personas/*.md` if they exist. These inform tone, audience, and messaging.
-3. **Design tokens** — Brand voice and personality from `.specs/design-system/tokens.md`
-4. **Hook best practices** — Read `shared-references/hook-writing.md` before writing any caption. The first line of every caption IS the hook.
-5. **Platform specs** — Read `shared-references/platform-specs.md` for character limits, hashtag limits, and media constraints per platform.
-6. **Caption formulas** — Read `shared-references/caption-writing.md` for platform-specific caption structures, CTA patterns, and formatting rules.
-7. **Content pillars** — Read `shared-references/content-pillars.md` for pillar alignment if posting as part of a content strategy.
+1. **Active project** — You should have already resolved the active project in Step 0. Use the project's channels, API keys, and brand context for everything below.
+2. **Was content just created?** — If a video was just rendered or an image was just made, that's the content. Don't ask "what do you want to post?"
+3. **Project context** — If the active project has a `specs_path`, read `.specs/vision.md` and `.specs/personas/*.md` from there. If it has a `brand_brief`, read that instead. These inform tone, audience, and messaging.
+4. **Design tokens** — Brand voice and personality from the project's `.specs/design-system/tokens.md` (if specs_path is set)
+5. **Hook best practices** — Read `shared-references/hook-writing.md` before writing any caption. The first line of every caption IS the hook.
+6. **Platform specs** — Read `shared-references/platform-specs.md` for character limits, hashtag limits, and media constraints per platform.
+7. **Caption formulas** — Read `shared-references/caption-writing.md` for platform-specific caption structures, CTA patterns, and formatting rules.
+8. **Content pillars** — Read `shared-references/content-pillars.md` for pillar alignment. Also check the project's `defaults.content_pillars` for project-specific pillars.
 
 ### Step 2: Ask Questions
 
