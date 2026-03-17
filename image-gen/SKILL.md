@@ -280,6 +280,7 @@ interface ImageJob {
   size?: "1024x1024" | "1536x1024" | "1024x1536" | "auto";
   model?: "gpt-image-1" | "gpt-image-1-mini";
   quality?: "low" | "medium" | "high" | "auto";
+  background?: "transparent" | "opaque" | "auto";
 }
 
 async function generateImage(job: ImageJob): Promise<string> {
@@ -289,6 +290,7 @@ async function generateImage(job: ImageJob): Promise<string> {
     n: 1,
     size: job.size || "1024x1024",
     quality: job.quality || "high",
+    background: job.background || "auto",
     response_format: "b64_json",
   });
 

@@ -230,7 +230,7 @@ query GetAccount {
   }
 }
 ```
-Use this first to get the `organizationId` needed for other queries.
+Use this to get the `organizationId` needed for other queries. **If the project's `buffer.organization_id` is already set in `projects.json`, skip this call** — it saves one API request per session. Only call this when `organization_id` is missing, then backfill the value into `projects.json`.
 
 #### List Connected Channels
 ```graphql
@@ -547,6 +547,8 @@ curl -s -X POST https://getlate.dev/api/v1/posts \
 | Add to queue | `"queuedFromProfile": "prof_123"` |
 | Save as draft | Omit all three |
 
+> **Discovering profile IDs**: To find valid profile IDs for queue scheduling, use `GET /v1/profiles` (see `references/late-api.md`). Each profile object includes `id`, `name`, and `isDefault`.
+
 **Mapping from Buffer concepts to Late.Dev:**
 | Buffer | Late.Dev |
 |--------|----------|
@@ -776,7 +778,7 @@ Both Buffer and Late.Dev require media to be accessible via public URL. Upload t
 ### Buffer (GraphQL)
 
 ```bash
-# 1. Get organization ID
+# 1. Get organization ID (skip if buffer.organization_id is set in projects.json)
 curl -s -X POST https://api.buffer.com \
   -H "Authorization: Bearer $BUFFER_API_KEY" \
   -H "Content-Type: application/json" \

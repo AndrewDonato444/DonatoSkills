@@ -227,6 +227,7 @@ Determine which skill to invoke based on the item's `type`:
 2. **`shared-references/platform-specs.md`** — Dimensions, durations, character limits, file size limits per platform. Use this to set correct params when invoking creation skills.
 3. **`shared-references/caption-writing.md`** — Caption structure formulas, CTA patterns, hashtag strategies per platform. Use this when writing captions for scheduled posts.
 4. **`shared-references/content-pillars.md`** — Pillar frameworks, rotation strategies, and cadence recommendations. Use this when generating the content calendar to ensure proper pillar distribution and posting frequency.
+5. **`shared-references/analytics-schema.md`** — Full taxonomy of template variables and valid values for video content. Use this when tagging calendar items with `variables` and when mapping brief-driven template variables to creation skill params.
 
 When invoking `remotion-video`, provide ALL of these in your prompt so it skips questions:
 - Platform and dimensions
@@ -239,6 +240,7 @@ When invoking `remotion-video`, provide ALL of these in your prompt so it skips 
 
 Example orchestrated invocation:
 > "Use the remotion-video skill to create a video. ORCHESTRATED MODE -- all parameters provided, skip questions and build directly.
+> - Project: [project_id from projects.json]
 > - Platform: Twitter/X (1080x1080, 30fps)
 > - Message: [the concept from the calendar]
 > - Visual Mode: text-only *(or "ai-generated" for Nano Banana scene images)*
@@ -256,6 +258,7 @@ When invoking `image-gen`, provide ALL of these:
 
 Example orchestrated invocation:
 > "Use the image-gen skill to create an image. ORCHESTRATED MODE -- all parameters provided, skip questions and generate directly.
+> - Project: [project_id from projects.json]
 > - Concept: [the concept from the calendar]
 > - Platform: Instagram (1080x1080, 1:1)
 > - Style: [brand style]
@@ -271,6 +274,7 @@ When invoking `text-writer`, provide ALL of these:
 
 Example orchestrated invocation:
 > "Use the text-writer skill to write a post. ORCHESTRATED MODE -- all parameters provided, skip questions and write directly.
+> - Project: [project_id from projects.json]
 > - Platform: Twitter/X
 > - Topic: [the concept from the calendar]
 > - Tone: [brand tone]
@@ -387,6 +391,7 @@ When invoking remotion-video from a brief:
 ```
 Use the remotion-video skill to create a video. ORCHESTRATED MODE — all parameters provided.
 
+- Project: [project_id from projects.json]
 - Platform: TikTok (1080x1920, 30fps)
 - Message: [concept from brief's topic_guidance]
 - Visual Mode: [mapped from background_type]
