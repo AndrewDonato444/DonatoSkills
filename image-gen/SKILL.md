@@ -9,7 +9,7 @@ Generate social media images using Google's Nano Banana (Gemini) or OpenAI's GPT
 
 ## How This Works
 
-You craft the perfect prompt, call the Gemini API to generate the image, and save it locally. The user gets the image file and can review, tweak the prompt, or regenerate. Images are stored in an `images/` directory within the project, organized by job.
+You craft the perfect prompt, call the configured image generation API (Gemini or OpenAI, based on the project's `image_gen.default_provider`), and save it locally. The user gets the image file and can review, tweak the prompt, or regenerate. Images are stored in an `images/` directory within the project, organized by job.
 
 **For text on images**: Nano Banana has 94%+ accuracy in text rendering. Use the two-step method — isolate text specification from scene description — for best results.
 
@@ -289,6 +289,7 @@ async function generateImage(job: ImageJob): Promise<string> {
     n: 1,
     size: job.size || "1024x1024",
     quality: job.quality || "high",
+    response_format: "b64_json",
   });
 
   const outputDir = path.join(__dirname, "..", "output");
@@ -337,6 +338,8 @@ generateImage(job).catch(console.error);
 | Facebook | Share | `"16:9"` | 1200x630 |
 | YouTube | Thumbnail | `"16:9"` | 1280x720 |
 | Pinterest | Pin | `"2:3"` | 1000x1500 |
+
+> **OpenAI note**: OpenAI only supports `1024x1024`, `1536x1024`, `1024x1536`, and `auto`. When using OpenAI, map to the closest supported size (e.g., 16:9 → `1536x1024`, portrait → `1024x1536`, square → `1024x1024`). The Gemini aspect ratios above (`"1:1"`, `"16:9"`, etc.) do not apply to OpenAI.
 
 ---
 
@@ -475,8 +478,10 @@ images/
 When creating a new image job:
 
 1. Create `images/<job-name>/`
-2. Create `package.json` with `@google/genai` dependency
-3. Create `scripts/generate-image.ts` with the generation logic
+2. Create `package.json` with the correct dependency:
+   - Gemini: `@google/genai`
+   - OpenAI: `openai`
+3. Create `scripts/generate-image.ts` with the generation logic (use the template matching the active provider)
 4. Run `npm install`
 5. Run `npx tsx scripts/generate-image.ts`
 6. Images appear in `output/`
@@ -509,7 +514,32 @@ for (const job of jobs) {
 }
 ```
 
-**Rate limits**: ~10 requests/minute. Add a 2-second delay between generations. For large batches (10+), use exponential backoff on 429 errors.
+**Gemini rate limits**: ~10 requests/minute. Add a 2-second delay between generations. For large batches (10+), use exponential backoff on 429 errors.
+
+### OpenAI Batch Example
+
+```typescript
+const jobs: { name: string; prompt: string; size?: string }[] = [
+  {
+    name: "quote-card-monday",
+    prompt: "Minimalist quote card with text 'Start Strong'...",
+    size: "1024x1024",
+  },
+  {
+    name: "tip-infographic",
+    prompt: "Clean infographic background with text '3 Tips'...",
+    size: "1536x1024",
+  },
+];
+
+for (const job of jobs) {
+  await generateImage(job);
+  // OpenAI Tier 1: ~5 images/minute. Use 3-second delay.
+  await new Promise((r) => setTimeout(r, 3000));
+}
+```
+
+**OpenAI rate limits**: ~5 images/minute (Tier 1). Add a 3-second delay between generations.
 
 ---
 
@@ -565,4 +595,6 @@ const carousel: ImageJob[] = [
 - File size: ~1-2 MB per PNG
 - Start with low-res previews for testing, then regenerate at full quality
 - Cache everything in `output/` — no need to regenerate unless the prompt changes
-- For cost optimization: use `gemini-2.5-flash-image` for drafts, `gemini-3-pro-image-preview` for finals
+- For cost optimization:
+  - Gemini: use `gemini-2.5-flash-image` for drafts, `gemini-3-pro-image-preview` for finals
+  - OpenAI: use `gpt-image-1-mini` for drafts, `gpt-image-1` for finals

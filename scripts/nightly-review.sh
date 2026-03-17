@@ -72,10 +72,22 @@ if command -v gh &> /dev/null; then
     RECENT_PRS=$(gh pr list --state merged --search "merged:>=$(date -v-${HOURS_BACK}H '+%Y-%m-%d')" --json title,body --jq '.[].title' 2>/dev/null | head -10)
 fi
 
-# Check if Cursor CLI is available
-if ! command -v agent &> /dev/null; then
-    error "Cursor CLI (agent) not found. Install from: https://cursor.com/cli"
-    exit 1
+# Determine CLI provider (default: claude, also supports cursor)
+CLI_PROVIDER="${CLI_PROVIDER:-claude}"
+if [ "$CLI_PROVIDER" = "cursor" ]; then
+    CLI_CMD="agent"
+    CLI_ARGS="-p --force --output-format text"
+    if ! command -v agent &> /dev/null; then
+        error "Cursor CLI (agent) not found. Install from: https://cursor.com/cli"
+        exit 1
+    fi
+else
+    CLI_CMD="claude"
+    CLI_ARGS="-p --output-format text"
+    if ! command -v claude &> /dev/null; then
+        error "Claude Code CLI not found. Install from: https://claude.com/claude-code"
+        exit 1
+    fi
 fi
 
 # ─────────────────────────────────────────────
@@ -84,7 +96,7 @@ fi
 
 log "Extracting learnings from recent work..."
 
-agent -p --force --output-format text "
+$CLI_CMD $CLI_ARGS "
 NIGHTLY REVIEW: Extract learnings from today's work.
 
 ## Recent Commits (last $HOURS_BACK hours)

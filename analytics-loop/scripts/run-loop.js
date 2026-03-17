@@ -26,6 +26,7 @@
  */
 
 const { execSync } = require("child_process");
+const fs = require("fs");
 const path = require("path");
 
 function run(command, label) {
@@ -74,16 +75,16 @@ async function main() {
     "2/5 — Score Posts"
   );
 
-  // Phase 2.5: Check Suppressions
-  run(
-    `node check-suppressions.js ${projectSlug} ${date}`,
-    "3/5 — Check Suppressions"
-  );
-
-  // Phase 3: Decompose
+  // Phase 3: Decompose (must run before check-suppressions, which reads variable-analysis.json)
   run(
     `node decompose-variables.js ${projectSlug} ${date}`,
-    "4/5 — Decompose Variables"
+    "3/5 — Decompose Variables"
+  );
+
+  // Phase 3.5: Check Suppressions (reads variable-analysis.json from Phase 3)
+  run(
+    `node check-suppressions.js ${projectSlug} ${date}`,
+    "4/5 — Check Suppressions"
   );
 
   // Phase 4: Generate Briefs
@@ -101,7 +102,36 @@ async function main() {
   console.log(`Briefs: analytics-loop/data/${projectSlug}/${date}/briefs/all-briefs.json`);
 
   // Output signals for orchestrated mode
+  // Read scored-posts.json to extract signal data
+  const dataDir = path.resolve(__dirname, "..", "data", projectSlug, date);
+  let postsAnalyzed = 0;
+  let postsExcluded = 0;
+  let globalTopScore = 0;
+  let winningTemplate = "{}";
+  try {
+    const scored = JSON.parse(fs.readFileSync(path.join(dataDir, "scored-posts.json"), "utf8"));
+    const included = scored.filter(p => !p.excluded);
+    const excluded = scored.filter(p => p.excluded);
+    postsAnalyzed = included.length;
+    postsExcluded = excluded.length;
+    if (included.length > 0) {
+      globalTopScore = included[0].score?.engagementDensity || 0;
+    }
+    const analysis = fs.existsSync(path.join(dataDir, "variable-analysis.json"))
+      ? JSON.parse(fs.readFileSync(path.join(dataDir, "variable-analysis.json"), "utf8"))
+      : null;
+    if (analysis?.winningTemplate) {
+      winningTemplate = JSON.stringify(analysis.winningTemplate);
+    }
+  } catch (_) {
+    // Non-fatal — signals will have defaults
+  }
+
   console.log(`\nANALYTICS_COMPLETE`);
+  console.log(`POSTS_ANALYZED: ${postsAnalyzed}`);
+  console.log(`POSTS_EXCLUDED: ${postsExcluded}`);
+  console.log(`GLOBAL_TOP_SCORE: ${globalTopScore}`);
+  console.log(`WINNING_TEMPLATE: ${winningTemplate}`);
   console.log(`BRIEFS_GENERATED: analytics-loop/data/${projectSlug}/${date}/briefs/all-briefs.json`);
 }
 

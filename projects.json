@@ -1,32 +1,33 @@
 {
   "_schema": "DonatoSkills Project Registry v1",
   "_docs": "shared-references/project-registry.md",
+  "_note": "Replace the example-project below with your own. See setup/SKILL.md for guided onboarding.",
 
   "projects": {
-    "donatos-deals": {
-      "name": "Donato's Deals",
-      "description": "Tech deals, vibe coding, and AI content for the @donatosdeals audience",
+    "example-project": {
+      "name": "Example Project",
+      "description": "Replace with your project description",
       "specs_path": null,
-      "brand_brief": "content-engine/calendars/vibe-coding-mar15/brand-brief.md",
+      "brand_brief": null,
       "buffer": {
         "api_key_env": "BUFFER_API_KEY",
         "organization_id": null,
         "channels": {
           "twitter": {
-            "id": "69b6156b7be9f8b1715935c5",
-            "name": "donatosdeals",
-            "username": "@donatosdeals"
+            "id": "YOUR_BUFFER_CHANNEL_ID",
+            "name": "your-handle",
+            "username": "@yourhandle"
           }
         }
       },
       "late": {
         "api_key_env": "LATE_API_KEY",
-        "profile_id": "69b8912784a675ce87f20d3b",
+        "profile_id": "YOUR_LATE_PROFILE_ID",
         "accounts": {
           "tiktok": {
-            "id": "69b891386cb7b8cf4c78c31d",
-            "name": "BabyFactsUnlocked",
-            "username": "@babyfactsunlocked"
+            "id": "YOUR_LATE_ACCOUNT_ID",
+            "name": "Your Account Name",
+            "username": "@yourhandle"
           }
         }
       },
@@ -36,7 +37,7 @@
         "api_secret_env": "CLOUDINARY_API_SECRET"
       },
       "tts": {
-        "providers": ["grok", "gemini"],
+        "providers": ["grok", "gemini", "elevenlabs"],
         "default_provider": "grok",
         "grok": {
           "api_key_env": "GROK_API_KEY",
@@ -45,12 +46,23 @@
         "gemini": {
           "api_key_env": "GEMINI_API_KEY",
           "default_voice": "Kore"
+        },
+        "elevenlabs": {
+          "api_key_env": "ELEVENLABS_API_KEY",
+          "default_voice": "Adam"
         }
       },
       "image_gen": {
-        "provider": "gemini",
-        "api_key_env": "GEMINI_API_KEY",
-        "default_model": "gemini-2.5-flash-image"
+        "providers": ["gemini", "openai"],
+        "default_provider": "gemini",
+        "gemini": {
+          "api_key_env": "GEMINI_API_KEY",
+          "default_model": "gemini-2.5-flash-image"
+        },
+        "openai": {
+          "api_key_env": "OPENAI_API_KEY",
+          "default_model": "gpt-image-1"
+        }
       },
       "analytics_loop": {
         "collection_window_hours": 48,
@@ -64,22 +76,22 @@
         },
         "template_promotion": {
           "min_lift": 0.15,
-          "min_channels": 5,
+          "min_channels": 3,
           "min_cycles": 2,
           "min_sample": 10
         }
       },
       "defaults": {
-        "tone": "casual, funny, confident",
+        "tone": "casual, confident",
         "content_pillars": ["product", "education", "personality", "social-proof"],
         "posting_frequency": {
           "twitter": "daily"
         }
       },
-      "created": "2026-03-15",
+      "created": "2026-03-16",
       "updated": "2026-03-16"
     }
   },
 
-  "default_project": "donatos-deals"
+  "default_project": "example-project"
 }

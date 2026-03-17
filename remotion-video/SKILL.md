@@ -139,7 +139,7 @@ After gathering answers, give a brief summary of what you'll build:
 > - **Duration**: 15 seconds (450 frames)
 > - **Style**: Premium/luxury using your design tokens (navy + gold palette)
 > - **Visuals**: Text-only *(or "AI-generated backgrounds via Gemini with Ken Burns zoom/pan" or "AI-generated backgrounds (static)" or "Your provided assets with Ken Burns")*
-> - **Voiceover**: AI narration via Grok TTS (Kore voice) *(or "via Gemini TTS" or "None")*
+> - **Voiceover**: AI narration via Grok TTS (onyx voice) *(or "via Gemini TTS (Kore voice)" or "via ElevenLabs" or "None")*
 > - **Scenes**: [brief scene breakdown]
 > - **Logo**: Your logo.png as an end-card reveal
 >

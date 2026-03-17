@@ -40,7 +40,7 @@ ORCHESTRATED MODE — analytics-loop
 
 In orchestrated mode:
 1. Skip the interactive question flow
-2. Run all 4 phases with the provided parameters
+2. Run all 5 phases with the provided parameters
 3. Output these signals when done:
 
 ```

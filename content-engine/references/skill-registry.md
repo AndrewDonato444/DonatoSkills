@@ -23,7 +23,7 @@ The downstream skill will:
 
 **Produces**: `.mp4` video file
 **Skill location**: `/remotion-video/SKILL.md`
-**Output location**: `videos/<project-name>/out/video.mp4`
+**Output location**: `videos/<campaign-slug>/item-<NNN>/out/video.mp4` (standalone) or `content-engine/calendars/<campaign-slug>/videos/<item-id>/out/video.mp4` (orchestrated)
 
 ### Required Parameters (for orchestrated mode)
 
@@ -39,8 +39,8 @@ The downstream skill will:
 | Parameter | Description | Example |
 |-----------|-------------|---------|
 | voiceover | AI voiceover with script | "AI voiceover, script: 'Tired of jittery coffee?...'" |
-| tts_provider | TTS provider to use | "grok" (default), "gemini" |
-| voice | TTS voice name | Grok: "alloy", "onyx", "nova"; Gemini: "Kore", "Puck" |
+| tts_provider | TTS provider to use | "grok" (default), "gemini", "elevenlabs" |
+| voice | TTS voice name | Grok: "alloy", "onyx", "nova"; Gemini: "Kore", "Puck"; ElevenLabs: "Adam", "Rachel" |
 | visual_mode | How visuals are created | "text-only", "ai-generated", "user-provided" |
 | music | Background music | Not yet supported |
 | output_path | Custom output directory | "videos/zenbrew-launch/item-001/" |
@@ -56,7 +56,7 @@ Use the remotion-video skill to create a video. ORCHESTRATED MODE -- all paramet
 - Style: [visual style description]
 - Duration: [N] seconds
 - Voiceover: [AI voiceover with script / none]
-- TTS Provider: [grok / gemini] (default: grok)
+- TTS Provider: [grok / gemini / elevenlabs] (default: read from project tts.default_provider)
 - Voice: [voice name if voiceover]
 - Output: videos/[campaign-slug]/item-[NNN]/
 ```
@@ -147,7 +147,8 @@ After scheduling, returns:
 | Parameter | Description | Example |
 |-----------|-------------|---------|
 | text_overlay | Text on the image (keep under 25 chars) | "'Dream Big' in bold white sans-serif, centered" |
-| model | Nano Banana model | "gemini-2.5-flash-image" (default) or "gemini-3-pro-image-preview" |
+| provider | Image generation provider | "gemini" (default) or "openai" — read from project image_gen.default_provider |
+| model | Model name | Gemini: "gemini-2.5-flash-image" (default) / "gemini-3-pro-image-preview"; OpenAI: "gpt-image-1" (default) / "gpt-image-1-mini" |
 | quantity | Number of variations | 1 (default), up to 4 |
 | output_path | Custom output directory | "images/zenbrew-march/" |
 
@@ -156,6 +157,7 @@ After scheduling, returns:
 ```
 Use the image-gen skill to create an image. ORCHESTRATED MODE -- all parameters provided, skip questions and generate directly.
 
+- Provider: [gemini / openai] (read from project image_gen.default_provider)
 - Concept: [what the image shows]
 - Platform: [platform] ([width]x[height], [ratio])
 - Style: [visual style description]

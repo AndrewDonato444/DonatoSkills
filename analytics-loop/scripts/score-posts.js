@@ -73,10 +73,11 @@ function aggregateByChannel(scoredPosts) {
   for (const post of scoredPosts) {
     if (post.excluded) continue;
 
-    // Use first platform analytics entry as channel identifier
+    // Use platform + profile/account name as channel identifier
     const platform =
       post.platformAnalytics?.[0]?.platform || "unknown";
-    const key = platform;
+    const profileName = post.profileName || post.accountName || "";
+    const key = profileName ? `${profileName} (${platform})` : platform;
 
     if (!channels[key]) {
       channels[key] = { platform: key, posts: [], scores: [] };

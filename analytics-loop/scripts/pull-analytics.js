@@ -111,13 +111,16 @@ async function main() {
   }
 
   // Collect from all profiles (multi-channel support)
+  // Support both "accounts" (projects.json convention) and "channels" (legacy)
   const profiles = [];
-  if (project.late.channels) {
-    // Multi-channel: iterate over each channel's profile_id
-    for (const channel of project.late.channels) {
+  const accountEntries = project.late.accounts || project.late.channels;
+  if (accountEntries && typeof accountEntries === "object") {
+    // accounts is an object keyed by platform (e.g., { tiktok: { id, name, ... } })
+    const entries = Array.isArray(accountEntries) ? accountEntries : Object.values(accountEntries);
+    for (const account of entries) {
       profiles.push({
-        profileId: channel.profile_id,
-        name: channel.name,
+        profileId: account.profile_id || account.id,
+        name: account.name,
       });
     }
   } else if (project.late.profile_id) {

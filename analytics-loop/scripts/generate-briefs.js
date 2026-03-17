@@ -234,13 +234,15 @@ async function main() {
   console.log(`Exploit/explore ratio: ${ratio[0]}:${ratio[1]}`);
   console.log(`Active suppressions: ${suppressedCount}`);
 
-  // Determine channels
+  // Determine channels — support both "accounts" (projects.json convention) and "channels" (legacy)
   const channels = [];
-  if (project.late?.channels) {
-    for (const ch of project.late.channels) {
+  const accountEntries = project.late?.accounts || project.late?.channels;
+  if (accountEntries && typeof accountEntries === "object") {
+    const entries = Array.isArray(accountEntries) ? accountEntries : Object.values(accountEntries);
+    for (const ch of entries) {
       channels.push({
         name: ch.name,
-        profile_id: ch.profile_id,
+        profile_id: ch.profile_id || ch.id,
         topic: ch.topic,
         content_pillars: ch.content_pillars,
       });
