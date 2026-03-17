@@ -1,31 +1,52 @@
 ---
 name: social-media
-description: Plan, schedule, and publish social media content using Buffer. Use this skill when the user wants to schedule posts, plan a content calendar, publish to social platforms (Instagram, TikTok, Twitter/X, LinkedIn, Facebook, YouTube, Threads, Bluesky, Mastodon), manage their Buffer queue, check post analytics, or repurpose content across platforms. Also trigger when the user says "post this," "schedule this," "publish," "content calendar," "social media plan," or references Buffer directly.
+description: Plan, schedule, and publish social media content using Buffer or Late.Dev. Use this skill when the user wants to schedule posts, plan a content calendar, publish to social platforms (Instagram, TikTok, Twitter/X, LinkedIn, Facebook, YouTube, Threads, Bluesky, Mastodon), manage their Buffer queue, check post analytics, or repurpose content across platforms. Also trigger when the user says "post this," "schedule this," "publish," "content calendar," "social media plan," or references Buffer or Late directly.
 ---
 
 # Social Media Planner & Publisher
 
-Plan, schedule, and publish social media content via [Buffer](https://buffer.com). This skill handles everything after content is created — captions, hashtags, scheduling, cross-platform adaptation, and analytics.
+Plan, schedule, and publish social media content via [Buffer](https://buffer.com) or [Late.Dev](https://getlate.dev). This skill handles everything after content is created — captions, hashtags, scheduling, cross-platform adaptation, and analytics.
 
 ## How This Works
 
-Buffer is a social media management platform with a **GraphQL API** for scheduling and publishing posts. This skill uses the Buffer GraphQL API to manage the user's posting queue across connected social platforms.
+This skill supports **two scheduling backends**:
 
-The user tells you what they want to post (or you receive output from another skill like `remotion-video`). **You help them craft platform-optimized posts and schedule them through Buffer.**
+1. **Buffer** — GraphQL API, scheduling via mutations. The original backend.
+2. **Late.Dev** — REST API, scheduling via `POST /v1/posts`. Supports 14+ platforms, per-platform custom content in a single request, and post validation.
+
+**Which backend to use** is determined by the active project's configuration in `projects.json`:
+- If the project has a `late` config with a valid API key → use Late.Dev
+- If the project has a `buffer` config with a valid API key → use Buffer
+- If both are configured → **prefer Late.Dev** (newer, supports multi-platform in one call), unless the user explicitly says "use Buffer" or the orchestrator specifies `scheduler: buffer`
+- If neither is configured → ask the user which to set up
+
+The user tells you what they want to post (or you receive output from another skill like `remotion-video`). **You help them craft platform-optimized posts and schedule them through the active backend.**
 
 ---
 
 ## Orchestrated Mode
 
-When invoked by the `content-engine` skill (or any orchestrator), the prompt will contain **"ORCHESTRATED MODE"** and all required parameters (channel_id, caption, timing, asset URL). In this case:
+When invoked by the `content-engine` skill (or any orchestrator), the prompt will contain **"ORCHESTRATED MODE"** and all required parameters (channel_id/account_id, caption, timing, asset URL). It may also specify `scheduler: buffer` or `scheduler: late` to override the default backend. In this case:
 
 1. **Skip the interactive question flow entirely** — all decisions are already made
 2. **Confirm in one line** — e.g., "Scheduling video post to Twitter/X for Mar 17 at 2pm..."
-3. **Go straight to the Buffer API call**
+3. **Go straight to the API call** (Buffer GraphQL or Late.Dev REST, depending on the active backend)
 4. **Output a structured summary when done:**
+
+   For Buffer:
    ```
    POST_SCHEDULED
+   scheduler: buffer
    buffer_post_id: 67d5f3a...
+   platform: twitter
+   scheduled_at: 2026-03-17T14:00:00Z
+   ```
+
+   For Late.Dev:
+   ```
+   POST_SCHEDULED
+   scheduler: late
+   late_post_id: post_abc123...
    platform: twitter
    scheduled_at: 2026-03-17T14:00:00Z
    ```
@@ -67,6 +88,8 @@ When in orchestrated mode, the content-engine will include `project_id` in the i
 
 ### Buffer API Key
 
+If using Buffer as the scheduling backend:
+
 This skill requires a Buffer API key environment variable. The **env var name comes from the active project's** `buffer.api_key_env` field in `projects.json` (defaults to `BUFFER_API_KEY` if not set).
 
 The user needs to:
@@ -78,9 +101,33 @@ The user needs to:
 If the key is missing, tell the user:
 > "I need a Buffer API key to schedule posts for [project name]. You can get one from publish.buffer.com/settings/api — want me to walk you through it?"
 
-### Connected Channels
+### Late.Dev API Key
 
-Buffer requires social media channels to be connected through the Buffer web app. This skill reads available channels from `projects.json` — it does NOT need to query Buffer for the channel list (the registry already has channel IDs). If a channel in the registry returns an error from Buffer, it may have been disconnected.
+If using Late.Dev as the scheduling backend:
+
+The **env var name comes from the active project's** `late.api_key_env` field in `projects.json` (defaults to `LATE_API_KEY` if not set).
+
+The user needs to:
+
+1. Go to [Late.Dev API Settings](https://app.getlate.dev/settings/api)
+2. Generate an API key (starts with `sk_`)
+3. Add it to `.env` or `.env.local` with the name specified in `projects.json`
+
+If the key is missing, tell the user:
+> "I need a Late.Dev API key to schedule posts for [project name]. You can get one from app.getlate.dev/settings/api — want me to walk you through it?"
+
+### Connected Channels / Accounts
+
+**Buffer**: Channels are connected through the Buffer web app. This skill reads available channels from `projects.json` — it does NOT need to query Buffer for the channel list (the registry already has channel IDs). If a channel in the registry returns an error from Buffer, it may have been disconnected.
+
+**Late.Dev**: Accounts are connected through the Late.Dev web app or via OAuth endpoints. This skill reads available accounts from `projects.json` under `late.accounts`. If the accounts map is empty, query Late.Dev to discover connected accounts:
+
+```bash
+curl -s https://getlate.dev/api/v1/accounts \
+  -H "Authorization: Bearer $LATE_API_KEY"
+```
+
+Then offer to save the account IDs to `projects.json`.
 
 ---
 
@@ -446,9 +493,109 @@ Use `... on MutationError { message }` to catch these. They indicate validation 
 
 ---
 
+## Late.Dev REST API Reference
+
+For the full reference, see `references/late-api.md`.
+
+### Endpoint
+```
+POST https://getlate.dev/api/v1/posts
+```
+
+### Authentication
+```
+Authorization: Bearer {LATE_API_KEY}
+Content-Type: application/json
+```
+
+### Creating a Post
+
+Late.Dev uses a single REST endpoint for post creation. Unlike Buffer, you can target **multiple platforms in one request** and provide **per-platform custom captions**.
+
+```bash
+curl -s -X POST https://getlate.dev/api/v1/posts \
+  -H "Authorization: Bearer $LATE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "Post caption here #hashtags",
+    "platforms": [
+      { "platform": "twitter", "accountId": "acc_xyz" }
+    ],
+    "scheduledFor": "2026-03-17T14:00:00Z",
+    "timezone": "America/New_York",
+    "mediaItems": [
+      { "url": "https://res.cloudinary.com/dk74vmp31/video/upload/v123/sample.mp4", "type": "video" }
+    ]
+  }'
+```
+
+**Post fields:**
+- `content` — post text (optional if all platforms have `customContent`)
+- `platforms` — array of `{ "platform": "twitter", "accountId": "acc_xyz" }` (required)
+- `scheduledFor` — ISO 8601 datetime for scheduled posting
+- `timezone` — IANA timezone (e.g., "America/New_York")
+- `publishNow` — set `true` to publish immediately
+- `queuedFromProfile` — profile ID to use queue scheduling
+- `mediaItems` — array of `{ "url": "...", "type": "video" }` for media attachments (type is `"video"` or `"image"`)
+- `customContent` — per-platform text overrides: `{ "twitter": "Short version", "linkedin": "Long version" }`
+
+**Scheduling modes:**
+| Mode | Field |
+|------|-------|
+| Schedule for later | `"scheduledFor": "2026-03-17T14:00:00Z"` |
+| Publish now | `"publishNow": true` |
+| Add to queue | `"queuedFromProfile": "prof_123"` |
+| Save as draft | Omit all three |
+
+**Mapping from Buffer concepts to Late.Dev:**
+| Buffer | Late.Dev |
+|--------|----------|
+| `channelId` | `platforms[].accountId` |
+| `text` | `content` |
+| `mode: customScheduled` + `dueAt` | `scheduledFor` |
+| `mode: shareNow` | `publishNow: true` |
+| `mode: addToQueue` | `queuedFromProfile` |
+| `assets.videos[].url` | `mediaItems[].url` + `"type": "video"` |
+| `assets.images[].url` | `mediaItems[].url` + `"type": "image"` |
+| Inline GraphQL mutation | Standard JSON POST body |
+
+### Validate Before Posting
+
+Late.Dev offers a dry-run validation endpoint:
+
+```bash
+curl -s -X POST https://getlate.dev/api/v1/validate/validate-post \
+  -H "Authorization: Bearer $LATE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ ... same body as create ... }'
+```
+
+Use this to catch missing media, character limits, and platform constraints before actually creating.
+
+### List Connected Accounts
+
+```bash
+curl -s https://getlate.dev/api/v1/accounts \
+  -H "Authorization: Bearer $LATE_API_KEY"
+```
+
+Returns account objects with `id`, `platform`, `name`, `username`, `status`.
+
+### Error Handling
+
+Late.Dev returns standard HTTP status codes:
+- `200` — success
+- `400` — validation error (check response body for details)
+- `401` — invalid or missing API key
+- `429` — rate limited (check `Retry-After` header)
+
+---
+
 ## Supported Services
 
-Instagram, Facebook, Twitter/X, LinkedIn, Pinterest, TikTok, Google Business, YouTube, Mastodon, Threads, Bluesky, Start Page
+**Buffer**: Instagram, Facebook, Twitter/X, LinkedIn, Pinterest, TikTok, Google Business, YouTube, Mastodon, Threads, Bluesky, Start Page
+
+**Late.Dev**: Twitter/X, Instagram, Facebook, LinkedIn, TikTok, YouTube, Pinterest, Reddit, Bluesky, Threads, Google Business, Telegram, Snapchat, WhatsApp
 
 ---
 
@@ -545,7 +692,7 @@ When the user creates a video with `remotion-video` and then wants to post it:
 1. The video file path is already known from the render output
 2. Skip content questions — the video IS the content
 3. Focus on: platform, caption, hashtags, timing
-4. For Buffer, the video needs to be accessible via URL — guide the user to upload it or use a hosting service if needed
+4. The video needs to be accessible via URL (Cloudinary). Both Buffer and Late.Dev accept public media URLs directly.
 
 ### Content Repurposing Flow
 
@@ -592,28 +739,33 @@ Use the `createIdea` mutation to save content ideas before they're ready to sche
 
 ### Bulk Scheduling
 When scheduling multiple posts at once:
-1. Create all posts in a batch (one `createPost` per channel per post)
-2. Show a summary table before confirming
-3. Use `schedulingType: "automatic"` to let Buffer space them out in the queue
+
+**Buffer**: Create one `createPost` per channel per post. Use `schedulingType: "automatic"` to let Buffer space them out.
+
+**Late.Dev**: Create one `POST /v1/posts` per post — but each request can target **multiple platforms** in the `platforms[]` array and provide **per-platform captions** via `customContent`. This means fewer API calls for multi-platform campaigns.
 
 ---
 
 ## Media Handling
 
-Buffer requires media to be accessible via URL. When working with local files:
+Both Buffer and Late.Dev require media to be accessible via public URL. Upload to Cloudinary first, then pass the `secure_url`.
 
-1. **Check if the user has a preferred hosting solution** (S3, Cloudinary, etc.)
-2. **For quick sharing**: suggest temporary hosting or guide upload to Buffer's web UI
-3. **For production workflows**: recommend setting up an S3 bucket or Cloudinary account for programmatic uploads
-
-Assets are passed in the `assets` field of `createPost`:
+**Buffer** — assets in the `assets` field:
 ```json
 {
   "assets": {
     "images": [{ "url": "https://...", "altText": "..." }],
-    "videos": [{ "url": "https://...", "thumbnailUrl": "https://..." }],
-    "links": [{ "url": "https://...", "title": "...", "description": "..." }]
+    "videos": [{ "url": "https://...", "thumbnailUrl": "https://..." }]
   }
+}
+```
+
+**Late.Dev** — media in the `mediaItems` array (each item needs `url` and `type`):
+```json
+{
+  "mediaItems": [
+    { "url": "https://res.cloudinary.com/...", "type": "video" }
+  ]
 }
 ```
 
@@ -621,7 +773,7 @@ Assets are passed in the `assets` field of `createPost`:
 
 ## Workflow: Full Post Creation via curl
 
-Here's the complete flow executed via bash:
+### Buffer (GraphQL)
 
 ```bash
 # 1. Get organization ID
@@ -641,4 +793,36 @@ curl -s -X POST https://api.buffer.com \
   -H "Authorization: Bearer $BUFFER_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"query": "mutation($input: CreatePostInput!) { createPost(input: $input) { ... on CreatePostPayload { post { id status scheduledAt } } ... on MutationError { message } } }", "variables": {"input": {"channelId": "CHANNEL_ID", "text": "Your post here", "schedulingType": "scheduled", "dueAt": "2026-03-15T14:00:00Z"}}}'
+```
+
+### Late.Dev (REST)
+
+```bash
+# 1. List connected accounts
+curl -s https://getlate.dev/api/v1/accounts \
+  -H "Authorization: Bearer $LATE_API_KEY"
+
+# 2. Validate post (optional dry run)
+curl -s -X POST https://getlate.dev/api/v1/validate/validate-post \
+  -H "Authorization: Bearer $LATE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "Your post here",
+    "platforms": [{ "platform": "twitter", "accountId": "ACCOUNT_ID" }],
+    "scheduledFor": "2026-03-15T14:00:00Z",
+    "timezone": "America/New_York",
+    "mediaItems": [{ "url": "https://res.cloudinary.com/...", "type": "video" }]
+  }'
+
+# 3. Create the scheduled post
+curl -s -X POST https://getlate.dev/api/v1/posts \
+  -H "Authorization: Bearer $LATE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "Your post here",
+    "platforms": [{ "platform": "twitter", "accountId": "ACCOUNT_ID" }],
+    "scheduledFor": "2026-03-15T14:00:00Z",
+    "timezone": "America/New_York",
+    "mediaItems": [{ "url": "https://res.cloudinary.com/...", "type": "video" }]
+  }'
 ```

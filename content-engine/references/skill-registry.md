@@ -39,7 +39,8 @@ The downstream skill will:
 | Parameter | Description | Example |
 |-----------|-------------|---------|
 | voiceover | AI voiceover with script | "AI voiceover, script: 'Tired of jittery coffee?...'" |
-| voice | Gemini TTS voice name | "Puck" (default), "Kore", "Charon" |
+| tts_provider | TTS provider to use | "grok" (default), "gemini" |
+| voice | TTS voice name | Grok: "alloy", "onyx", "nova"; Gemini: "Kore", "Puck" |
 | visual_mode | How visuals are created | "text-only", "ai-generated", "user-provided" |
 | music | Background music | Not yet supported |
 | output_path | Custom output directory | "videos/zenbrew-launch/item-001/" |
@@ -51,9 +52,11 @@ Use the remotion-video skill to create a video. ORCHESTRATED MODE -- all paramet
 
 - Platform: [platform] ([width]x[height], [fps]fps)
 - Message: [what the video says/shows]
+- Visual Mode: [text-only / ai-generated / user-provided]
 - Style: [visual style description]
 - Duration: [N] seconds
 - Voiceover: [AI voiceover with script / none]
+- TTS Provider: [grok / gemini] (default: grok)
 - Voice: [voice name if voiceover]
 - Output: videos/[campaign-slug]/item-[NNN]/
 ```
@@ -69,14 +72,14 @@ After rendering, the skill produces:
 
 ## social-media
 
-**Produces**: Scheduled Buffer post
+**Produces**: Scheduled post (via Buffer or Late.Dev)
 **Skill location**: `/social-media/SKILL.md`
 
 ### Required Parameters (for orchestrated mode)
 
 | Parameter | Description | Example |
 |-----------|-------------|---------|
-| channel_id | Buffer channel ID | "67d5f3a..." |
+| channel_id / account_id | Buffer channel ID or Late.Dev account ID | "67d5f3a..." or "acc_xyz" |
 | text | Post caption with hashtags | "Vibe coding is the future #coding #ai" |
 | timing | When to post | "2026-03-17T14:00:00Z" or "queue" or "now" |
 
@@ -87,9 +90,12 @@ After rendering, the skill produces:
 | asset_url | Cloudinary URL for media | "https://res.cloudinary.com/..." |
 | asset_type | Type of media | "video", "image" |
 | platform_metadata | Platform-specific options | `{ instagram: { postType: "reel" } }` |
+| scheduler | Force a specific backend | "buffer" or "late" (default: auto from project config) |
+| platform | Platform name (required for Late.Dev) | "twitter", "instagram" |
 
 ### Orchestrated Invocation Template
 
+**For Buffer:**
 ```
 Use the social-media skill to schedule a post. ORCHESTRATED MODE -- all parameters provided, skip questions and schedule directly.
 
@@ -100,10 +106,23 @@ Use the social-media skill to schedule a post. ORCHESTRATED MODE -- all paramete
 - Platform metadata: [if applicable]
 ```
 
+**For Late.Dev:**
+```
+Use the social-media skill to schedule a post. ORCHESTRATED MODE -- all parameters provided, skip questions and schedule directly.
+
+- Scheduler: late
+- Account: [account_id] ([platform name])
+- Platform: [twitter / instagram / linkedin / etc.]
+- Caption: [full caption with hashtags]
+- Timing: [ISO datetime / "queue" / "now"]
+- Media: [Cloudinary URL] (video/image)
+```
+
 ### Output
 
 After scheduling, returns:
-- Buffer post ID
+- Scheduler used (buffer or late)
+- Post ID (`buffer_post_id` or `late_post_id`)
 - Scheduled time
 - Post status
 
@@ -193,3 +212,52 @@ After writing, the skill:
 - Appends the post to `text-posts/<job-name>/posts.md`
 - All posts for a campaign are in ONE file (not scattered)
 - Each post has metadata (platform, date, status)
+
+---
+
+## analytics-loop
+
+**Produces**: `briefs.json` (JSON file of optimized content briefs)
+**Skill location**: `/analytics-loop/SKILL.md`
+**Output location**: `analytics-loop/data/<project>/<date>/briefs/all-briefs.json`
+
+### Required Parameters (for orchestrated mode)
+
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| project_id | Project slug from projects.json | "donatos-deals" |
+
+### Optional Parameters
+
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| date_range | Analytics collection period | "last_48h" (default), "last_72h", "2026-03-10 to 2026-03-16" |
+| platform_filter | Limit to one platform | "all" (default), "tiktok", "youtube", "instagram" |
+
+### Orchestrated Invocation Template
+
+```
+Use the analytics-loop skill to analyze post performance and generate briefs. ORCHESTRATED MODE — all parameters provided.
+
+- Project: [project_id]
+- Date range: [last_48h / last_72h / YYYY-MM-DD to YYYY-MM-DD]
+- Platform filter: [all / tiktok / youtube / instagram / ...]
+```
+
+### Output
+
+After completing all 4 phases, the skill produces:
+- `raw-analytics.json` — raw Late.Dev analytics data
+- `scored-posts.json` — posts ranked by engagement density
+- `variable-analysis.json` — structural variable decomposition with winning template
+- `briefs/all-briefs.json` — optimized briefs (2 exploit + 1 explore per channel)
+
+### Output Signals
+
+```
+ANALYTICS_COMPLETE
+POSTS_ANALYZED: {count}
+BRIEFS_GENERATED: analytics-loop/data/{project}/{date}/briefs/all-briefs.json
+```
+
+The content-engine reads the `BRIEFS_GENERATED` path to enter brief-driven mode.

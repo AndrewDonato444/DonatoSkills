@@ -61,10 +61,67 @@ The **brand context itself** (vision, personas, design tokens) lives in the proj
           }
         }
       },
+      "late": {
+        "api_key_env": "LATE_API_KEY",
+        "profile_id": "prof_id_from_late",
+        "accounts": {
+          "twitter": {
+            "id": "late_account_id",
+            "name": "display_name",
+            "username": "@handle"
+          }
+        }
+      },
       "cloudinary": {
         "cloud_name_env": "CLOUDINARY_CLOUD_NAME",
         "api_key_env": "CLOUDINARY_API_KEY",
         "api_secret_env": "CLOUDINARY_API_SECRET"
+      },
+      "tts": {
+        "providers": ["elevenlabs", "grok", "gemini"],
+        "default_provider": "elevenlabs",
+        "elevenlabs": {
+          "api_key_env": "ELEVENLABS_API_KEY",
+          "default_voice_id": "pNInz6obpgDQGcFmaJgB",
+          "default_voice_name": "Adam",
+          "model_id": "eleven_multilingual_v2"
+        },
+        "grok": {
+          "api_key_env": "GROK_API_KEY",
+          "default_voice": "onyx"
+        },
+        "gemini": {
+          "api_key_env": "GEMINI_API_KEY",
+          "default_voice": "Kore"
+        }
+      },
+      "image_gen": {
+        "providers": ["gemini", "openai"],
+        "default_provider": "gemini",
+        "provider": "gemini",
+        "api_key_env": "GEMINI_API_KEY",
+        "default_model": "gemini-2.5-flash-image",
+        "openai": {
+          "api_key_env": "OPENAI_API_KEY",
+          "default_model": "gpt-image-1"
+        }
+      },
+      "analytics_loop": {
+        "collection_window_hours": 48,
+        "min_impressions": 500,
+        "exploit_explore_ratio": [2, 1],
+        "scoring_weights": {
+          "shares": 4,
+          "saves": 3,
+          "comments": 2,
+          "likes": 1
+        },
+        "template_promotion": {
+          "min_lift": 0.15,
+          "min_channels": 5,
+          "min_cycles": 2,
+          "min_sample": 10
+        }
       },
       "defaults": {
         "tone": "casual, funny, confident",
@@ -95,11 +152,17 @@ The **brand context itself** (vision, personas, design tokens) lives in the proj
 | `description` | string | No | Brief description of the brand/audience |
 | `specs_path` | string\|null | No | Absolute path to the project's `.specs/` directory (for SDD projects). If set, skills read vision.md, personas, and design tokens from here. |
 | `brand_brief` | string\|null | No | Relative path (from DonatoSkills root) to the brand brief markdown file |
-| `buffer` | object | Yes | Buffer API configuration for this project |
+| `buffer` | object | No* | Buffer API configuration for this project |
+| `late` | object | No* | Late.Dev API configuration for this project |
 | `cloudinary` | object | No | Cloudinary configuration (can be shared across projects) |
+| `tts` | object | No | TTS provider configuration — which providers are enabled, default voices, API keys |
+| `image_gen` | object | No | Image generation configuration — provider, model, API key |
+| `analytics_loop` | object | No | Analytics loop configuration — scoring weights, collection window, template promotion rules |
 | `defaults` | object | No | Default content settings for this project |
 | `created` | string | Yes | ISO date when the project was added |
 | `updated` | string | Yes | ISO date of last update |
+
+*At least one scheduling backend (`buffer` or `late`) is required.
 
 ### Buffer Fields
 
@@ -109,12 +172,28 @@ The **brand context itself** (vision, personas, design tokens) lives in the proj
 | `organization_id` | string\|null | No | Buffer organization ID. If null, the skill queries it on first use and can backfill this field. |
 | `channels` | object | Yes | Map of platform → channel config. Keys are platform names (`twitter`, `instagram`, `linkedin`, `tiktok`, `facebook`, `youtube`, `threads`, `bluesky`, `mastodon`). |
 
-### Channel Fields
+### Channel Fields (Buffer)
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `id` | string | Yes | Buffer channel ID (used in API calls) |
 | `name` | string | Yes | Display name of the channel |
+| `username` | string | No | Platform username/handle |
+
+### Late.Dev Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `api_key_env` | string | Yes | Name of the env var containing the Late.Dev API key (starts with `sk_`). Defaults to `LATE_API_KEY`. |
+| `profile_id` | string\|null | No | Late.Dev profile ID. Used for queue scheduling (`queuedFromProfile`). If null, the skill queries it on first use. |
+| `accounts` | object | Yes | Map of platform → account config. Keys are platform names (`twitter`, `instagram`, etc.). |
+
+### Account Fields (Late.Dev)
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | Yes | Late.Dev account ID (used as `accountId` in API calls) |
+| `name` | string | Yes | Display name of the account |
 | `username` | string | No | Platform username/handle |
 
 ### Cloudinary Fields
@@ -124,6 +203,88 @@ The **brand context itself** (vision, personas, design tokens) lives in the proj
 | `cloud_name_env` | string | Yes | Env var for Cloudinary cloud name |
 | `api_key_env` | string | Yes | Env var for Cloudinary API key |
 | `api_secret_env` | string | Yes | Env var for Cloudinary API secret |
+
+### TTS Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `providers` | string[] | Yes | Enabled TTS providers: `"grok"`, `"gemini"`, `"elevenlabs"`. Order = preference for rotation. |
+| `default_provider` | string | Yes | Which provider to use when no preference specified |
+| `elevenlabs` | object | No | ElevenLabs config (required if `"elevenlabs"` in providers) |
+| `elevenlabs.api_key_env` | string | Yes | Env var name for ElevenLabs API key |
+| `elevenlabs.default_voice_id` | string | No | Voice ID (e.g., `"pNInz6obpgDQGcFmaJgB"` for Adam) |
+| `elevenlabs.default_voice_name` | string | No | Human-readable voice name |
+| `elevenlabs.model_id` | string | No | Model ID. Default: `"eleven_multilingual_v2"` |
+| `grok` | object | No | Grok TTS config (required if `"grok"` in providers) |
+| `grok.api_key_env` | string | Yes | Env var name for Grok/xAI API key |
+| `grok.default_voice` | string | No | Voice name (e.g., `"onyx"`, `"nova"`) |
+| `gemini` | object | No | Gemini TTS config (required if `"gemini"` in providers) |
+| `gemini.api_key_env` | string | Yes | Env var name for Gemini API key |
+| `gemini.default_voice` | string | No | Voice name (e.g., `"Kore"`, `"Puck"`) |
+
+### Image Generation Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `providers` | string[] | No | Enabled image gen providers: `"gemini"`, `"openai"`. Order = preference. If omitted, uses `provider` field. |
+| `default_provider` | string | No | Which provider to use when no preference specified. Falls back to `provider` field. |
+| `provider` | string | Yes | Primary image gen provider (`"gemini"` or `"openai"`) |
+| `api_key_env` | string | Yes | Env var name for the primary provider's API key |
+| `default_model` | string | No | Default model ID. Gemini: `"gemini-2.5-flash-image"` (fast), `"gemini-3-pro-image-preview"` (quality). OpenAI: `"gpt-image-1"` (quality), `"gpt-image-1-mini"` (fast). |
+| `openai` | object | No | OpenAI-specific config (required if `"openai"` in providers) |
+| `openai.api_key_env` | string | Yes | Env var name for OpenAI API key |
+| `openai.default_model` | string | No | Default model: `"gpt-image-1"` or `"gpt-image-1-mini"` |
+| `gemini` | object | No | Gemini-specific config (when using multi-provider with explicit blocks) |
+| `gemini.api_key_env` | string | Yes | Env var name for Gemini API key |
+| `gemini.default_model` | string | No | Default model: `"gemini-2.5-flash-image"` or `"gemini-3-pro-image-preview"` |
+
+### Analytics Loop Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `collection_window_hours` | number | No | How many hours after publishing to wait before scoring. Default: `48`. |
+| `min_impressions` | number | No | Posts below this threshold are excluded from scoring. Default: `500`. Lower to `200` for new/small channels. |
+| `exploit_explore_ratio` | number[] | No | Ratio of exploit to explore briefs per channel. Default: `[2, 1]` (2 exploit + 1 explore). |
+| `scoring_weights` | object | No | Override formula weights. Keys: `shares`, `saves`, `comments`, `likes`. Defaults: `4, 3, 2, 1`. |
+| `template_promotion` | object | No | Rules for when a new winning template replaces the current one. |
+| `template_promotion.min_lift` | number | No | Minimum improvement over current template to trigger switch. Default: `0.15` (15%). |
+| `template_promotion.min_channels` | number | No | Minimum channels showing improvement. Default: `5`. |
+| `template_promotion.min_cycles` | number | No | Minimum consecutive scoring cycles. Default: `2`. |
+| `template_promotion.min_sample` | number | No | Minimum posts with the new combination. Default: `10`. |
+
+### Multi-Channel Late.Dev Configuration
+
+For projects with many channels (e.g., "Facts Unlocked" with 20 topic channels), the `late` config can optionally use a `channels` array instead of the flat `accounts` map:
+
+```json
+{
+  "late": {
+    "api_key_env": "LATE_API_KEY",
+    "channels": [
+      {
+        "name": "Love Facts Unlocked",
+        "profile_id": "prof_love",
+        "accounts": {
+          "tiktok": { "id": "acc_love_tt", "name": "LoveFactsUnlocked" },
+          "youtube": { "id": "acc_love_yt", "name": "Love Facts Unlocked" },
+          "instagram": { "id": "acc_love_ig", "name": "lovefactsunlocked" }
+        },
+        "topic": "love, relationships, romance",
+        "content_pillars": ["dating stats", "relationship psychology", "love history"]
+      },
+      {
+        "name": "Money Facts Unlocked",
+        "profile_id": "prof_money",
+        "accounts": { "...": "..." },
+        "topic": "finance, money, wealth",
+        "content_pillars": ["wealth statistics", "financial psychology", "money history"]
+      }
+    ]
+  }
+}
+```
+
+The flat `accounts` map (with a single `profile_id`) remains valid for single-channel projects. Skills should check for `late.channels` array first, then fall back to `late.accounts` map.
 
 ### Default Fields
 

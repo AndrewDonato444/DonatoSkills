@@ -5,7 +5,7 @@ description: Generate images for social media using AI (Nano Banana / Gemini). U
 
 # Image Generator
 
-Generate social media images using Google's Nano Banana (Gemini Image Generation). This skill creates platform-optimized visuals — quote cards, product shots, thumbnails, infographics, carousel slides, and more.
+Generate social media images using Google's Nano Banana (Gemini) or OpenAI's GPT Image API. This skill creates platform-optimized visuals — quote cards, product shots, thumbnails, infographics, carousel slides, and more.
 
 ## How This Works
 
@@ -59,21 +59,40 @@ See `shared-references/project-registry.md` for the full resolution logic.
 
 ## Prerequisites
 
-### Gemini API Key
+### API Key (at least one required)
 
-This skill requires a `GEMINI_API_KEY` environment variable (stored in the project `.env` file). The user needs:
+**Gemini (default):** Set `GEMINI_API_KEY` in `.env`. Get one from [Google AI Studio](https://aistudio.google.com/).
 
-1. A Google Cloud account with Vertex AI API enabled
-2. A Gemini API key from [Google AI Studio](https://aistudio.google.com/)
+**OpenAI:** Set `OPENAI_API_KEY` in `.env`. Get one from [platform.openai.com/api-keys](https://platform.openai.com/api-keys).
 
-If the key is missing, tell the user:
-> "I need a Gemini API key to generate images. You can get one from aistudio.google.com — want me to walk you through it?"
+If neither key is found, tell the user:
+> "I need an image generation API key. You can use Gemini (aistudio.google.com) or OpenAI (platform.openai.com/api-keys) — want me to walk you through it?"
+
+### Provider Selection
+
+Read from `projects.json` → `image_gen.default_provider` (or `image_gen.provider` for backward compatibility). If both are configured, the user can override per-request:
+- "use OpenAI for this one" → switch provider for this generation
+- "use Gemini" → switch back
+
+**When to suggest OpenAI over Gemini:**
+- Text in images is critical (OpenAI has superior text rendering)
+- Transparent backgrounds needed
+- Premium quality is the priority
+
+**When to suggest Gemini over OpenAI:**
+- Speed matters (faster generation)
+- Already have `GEMINI_API_KEY` for TTS
+- Fine-grained aspect ratio control needed
+- Cost optimization on large batches
 
 ### Node.js Dependencies
 
-The generation script needs:
 ```bash
+# For Gemini
 npm i @google/genai
+
+# For OpenAI
+npm i openai
 ```
 
 ---
@@ -157,7 +176,7 @@ Show the prompt you'll send before generating:
 > - **Concept**: Matcha latte in a cozy setting with morning light
 > - **Text**: "Dream Big" in bold white sans-serif, centered
 > - **Style**: Photorealistic, warm tones
-> - **Model**: gemini-2.5-flash-image
+> - **Provider**: Gemini (gemini-2.5-flash-image)
 >
 > Look good? I'll generate it.
 
@@ -165,9 +184,9 @@ Wait for confirmation before calling the API.
 
 ---
 
-## Nano Banana API Reference
+## API Reference
 
-### Models
+### Gemini (Nano Banana) Models
 
 | Model | ID | Use Case | Speed | Cost |
 |-------|-----|----------|-------|------|
@@ -177,7 +196,18 @@ Wait for confirmation before calling the API.
 
 **Default**: Use `gemini-2.5-flash-image` for most images. Use Pro for hero visuals or high-stakes creatives.
 
-### Generation Script
+### OpenAI (GPT Image) Models
+
+| Model | ID | Use Case | Speed | Cost |
+|-------|-----|----------|-------|------|
+| GPT Image 1 | `gpt-image-1` | Highest quality, best text rendering | Slower (~10s) | ~$0.04-0.08/image |
+| GPT Image 1 Mini | `gpt-image-1-mini` | Fast drafts, batch generation | Fast (~5s) | ~$0.02-0.04/image |
+
+**Default**: Use `gpt-image-1` for final assets. Use `gpt-image-1-mini` for drafts/batches.
+
+See `image-gen/references/openai-image-gen.md` for full OpenAI API reference.
+
+### Generation Script (Gemini)
 
 Create a `generate-image.ts` script in the job directory:
 
@@ -234,6 +264,54 @@ const job: ImageJob = {
 
 generateImage(job).catch(console.error);
 ```
+
+### Generation Script (OpenAI)
+
+```typescript
+import OpenAI from "openai";
+import * as fs from "fs";
+import * as path from "path";
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+
+interface ImageJob {
+  name: string;
+  prompt: string;
+  size?: "1024x1024" | "1536x1024" | "1024x1536" | "auto";
+  model?: "gpt-image-1" | "gpt-image-1-mini";
+  quality?: "low" | "medium" | "high" | "auto";
+}
+
+async function generateImage(job: ImageJob): Promise<string> {
+  const response = await openai.images.generate({
+    model: job.model || "gpt-image-1",
+    prompt: job.prompt,
+    n: 1,
+    size: job.size || "1024x1024",
+    quality: job.quality || "high",
+  });
+
+  const outputDir = path.join(__dirname, "..", "output");
+  fs.mkdirSync(outputDir, { recursive: true });
+
+  const buffer = Buffer.from(response.data[0].b64_json!, "base64");
+  const outputPath = path.join(outputDir, `${job.name}.png`);
+  fs.writeFileSync(outputPath, buffer);
+  console.log(`Generated: ${outputPath} (${buffer.length} bytes)`);
+  return outputPath;
+}
+
+// Usage
+const job: ImageJob = {
+  name: "IMAGE_NAME",
+  prompt: "PROMPT_HERE",
+  size: "1024x1024",
+};
+
+generateImage(job).catch(console.error);
+```
+
+**Which script to scaffold?** Read `image_gen.default_provider` from `projects.json`. If `"openai"`, scaffold the OpenAI script. If `"gemini"` (or not set), scaffold the Gemini script. Include the `openai` or `@google/genai` dependency in `package.json` accordingly.
 
 ### Available Aspect Ratios
 

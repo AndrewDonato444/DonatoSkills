@@ -15,7 +15,7 @@ You are the orchestrator. You do NOT create content directly. Instead, you:
 2. **Plan** a content calendar with specific posts, platforms, and timing
 3. **Invoke** creation skills (remotion-video, image-gen, etc.) in orchestrated mode
 4. **Upload** created assets to Cloudinary for public URLs
-5. **Schedule** everything through Buffer via the social-media skill
+5. **Schedule** everything through Buffer or Late.Dev via the social-media skill
 
 The user tells you about their brand and goals. You build and execute the plan.
 
@@ -54,23 +54,27 @@ As the orchestrator, you set the project context for all downstream skills. When
 
 ### Required API Keys
 
-All keys should be in the project `.env` file. The **env var names come from the active project's configuration** in `projects.json`:
+All keys should be in the project `.env` / `.env.local` file. The **env var names come from the active project's configuration** in `projects.json`:
 
 | Key (default) | Service | Purpose | Project Config Field |
 |-----|---------|---------|---------------------|
-| `BUFFER_API_KEY` | Buffer | Social media scheduling | `buffer.api_key_env` |
-| `GEMINI_API_KEY` | Google Gemini | Video voiceover (TTS) + image generation | (global) |
+| `BUFFER_API_KEY` | Buffer | Social media scheduling (GraphQL) | `buffer.api_key_env` |
+| `LATE_API_KEY` | Late.Dev | Social media scheduling (REST) | `late.api_key_env` |
+| `GROK_API_KEY` | Grok (xAI) | Video voiceover TTS (default provider) | (global) |
+| `GEMINI_API_KEY` | Google Gemini | Image generation + Gemini TTS (alternative) | (global) |
 | `CLOUDINARY_CLOUD_NAME` | Cloudinary | Media hosting | `cloudinary.cloud_name_env` |
 | `CLOUDINARY_API_KEY` | Cloudinary | Media hosting | `cloudinary.api_key_env` |
 | `CLOUDINARY_API_SECRET` | Cloudinary | Media hosting | `cloudinary.api_secret_env` |
 
+Only one scheduling backend is required (Buffer OR Late.Dev). If both are configured, the social-media skill prefers Late.Dev by default.
+
 If any key is missing, tell the user which ones are needed and how to get them. Reference the project name so they know which account to configure.
 
-### Buffer Channels
+### Channels / Accounts
 
-**Do NOT query Buffer for the channel list.** The project registry (`projects.json`) already contains the channel IDs for the active project. Use those directly.
+**Buffer**: The project registry (`projects.json`) contains channel IDs in `buffer.channels`. Use those directly. Only query Buffer to verify or discover channels.
 
-Only query Buffer to verify channels still exist or to discover new channels when the user says "sync channels" or "add a new channel".
+**Late.Dev**: The project registry contains account IDs in `late.accounts`. If empty, query `GET https://getlate.dev/api/v1/accounts` and offer to save to `projects.json`.
 
 ---
 
@@ -142,6 +146,20 @@ Group these conversationally. Skip what you already know.
    - **Autonomous** -- I'll create and schedule everything, you review after
    - **Plan only** -- just generate the calendar, don't create anything yet"
 
+### Step 2b: Check for Analytics Briefs (before generating calendar)
+
+Before generating a calendar from scratch, check if the analytics-loop has produced briefs:
+
+```
+analytics-loop/data/{project}/{date}/briefs/all-briefs.json
+```
+
+Check today's date and yesterday's date. If a briefs file exists:
+
+> "I found analytics-generated briefs from [date] with [N] optimized content suggestions. These are based on engagement data from your recent posts. Want to use brief-driven mode, or plan from scratch?"
+
+**If brief-driven mode is selected**, skip to the Brief-Driven Mode section below.
+
 ### Step 3: Generate Calendar
 
 After gathering answers, generate the content calendar and show it:
@@ -211,18 +229,20 @@ Determine which skill to invoke based on the item's `type`:
 When invoking `remotion-video`, provide ALL of these in your prompt so it skips questions:
 - Platform and dimensions
 - Content/message (what the video says)
+- Visual mode: text-only | ai-generated | user-assets
 - Visual style (colors, vibe, animation style)
 - Duration
-- Voiceover: yes/no, and if yes, the script
+- Voiceover: yes/no, and if yes: the script, TTS provider (grok or gemini), and voice name
 - Output path
 
 Example orchestrated invocation:
 > "Use the remotion-video skill to create a video. ORCHESTRATED MODE -- all parameters provided, skip questions and build directly.
 > - Platform: Twitter/X (1080x1080, 30fps)
 > - Message: [the concept from the calendar]
+> - Visual Mode: text-only *(or "ai-generated" for Nano Banana scene images)*
 > - Style: [brand style]
 > - Duration: 15 seconds
-> - Voiceover: AI voiceover, script: [the script]
+> - Voiceover: AI voiceover, TTS Provider: grok, Voice: alloy, Script: [the script]
 > - Output: [absolute-path]/content-engine/calendars/[campaign-slug]/videos/001-[name]/"
 
 When invoking `image-gen`, provide ALL of these:
@@ -281,9 +301,11 @@ Extract `secure_url` from the response. Update calendar item status to `uploaded
 
 See `references/cloudinary-upload.md` for details.
 
-### 3. Schedule via Buffer
+### 3. Schedule via Buffer or Late.Dev
 
-Use the Buffer GraphQL API to create the post:
+Use whichever scheduling backend the active project is configured for. If both `buffer` and `late` are configured, prefer Late.Dev.
+
+**Buffer (GraphQL):**
 
 ```graphql
 mutation {
@@ -309,7 +331,24 @@ mutation {
 
 **Important**: Use inline variables for mutations (not the `variables` JSON field). Buffer returns `Bad Request` with parameterized mutation variables.
 
-Update calendar item status to `scheduled` with `buffer_post_id`.
+**Late.Dev (REST):**
+
+```bash
+curl -s -X POST https://getlate.dev/api/v1/posts \
+  -H "Authorization: Bearer $LATE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "Caption with #hashtags",
+    "platforms": [{ "platform": "twitter", "accountId": "ACCOUNT_ID" }],
+    "scheduledFor": "2026-03-17T14:00:00Z",
+    "timezone": "America/New_York",
+    "mediaItems": [{ "url": "https://res.cloudinary.com/...", "type": "video" }]
+  }'
+```
+
+**Late.Dev advantages**: Multi-platform in one request via `platforms[]`, per-platform captions via `customContent`, and dry-run validation via `POST /v1/validate/validate-post`.
+
+Update calendar item status to `scheduled` with `buffer_post_id` or `late_post_id`.
 
 ### 4. Log & Continue
 
@@ -321,16 +360,84 @@ Then move to the next item.
 
 ---
 
+## Brief-Driven Mode (Analytics Loop Integration)
+
+When the analytics-loop skill has generated briefs, the content-engine can operate in **brief-driven mode** — using data-driven templates instead of planning from scratch.
+
+### How It Works
+
+1. **Check for briefs** at `analytics-loop/data/{project}/{date}/briefs/all-briefs.json`
+2. **Read the briefs file** — each brief specifies a channel, template variables, slot type (exploit/explore), and topic guidance
+3. **Generate calendar items** from briefs:
+   - Set `variables` on each item from the brief's `template` object
+   - Set `brief_id` linking back to the source brief
+   - Use `topic_guidance` from the brief to inform the content concept
+   - Use `schedule_time` from the brief (or fall back to project defaults)
+4. **Pass template variables to creation skills**:
+   - When invoking `remotion-video` in orchestrated mode, include the template variables so the video matches the winning format
+   - Map `hook_type` → script structure, `video_length` → duration, `voice_pace` → TTS speed, etc.
+5. **Tag every post** with its variable combination in the calendar JSON — this closes the loop for future scoring
+
+### Orchestrated Invocation with Template Variables
+
+When invoking remotion-video from a brief:
+
+```
+Use the remotion-video skill to create a video. ORCHESTRATED MODE — all parameters provided.
+
+- Platform: TikTok (1080x1920, 30fps)
+- Message: [concept from brief's topic_guidance]
+- Visual Mode: [mapped from background_type]
+- Style: [brand style]
+- Duration: [from video_length variable] seconds
+- Voiceover: AI voiceover, TTS Provider: [project default], Voice: [project default]
+- Voice Pace: [from voice_pace variable]
+- Hook Type: [from hook_type variable — structure the opening accordingly]
+- Text Overlay Style: [from text_overlay variable]
+- Music Energy: [from music_energy variable]
+- CTA Style: [from cta_style variable]
+- Output: videos/[campaign-slug]/item-[NNN]/
+```
+
+### When No Briefs Exist
+
+Fall back to the standard calendar-from-scratch flow (Steps 1-3 of the Interactive Question Flow).
+
+### Variable Tagging (All Modes)
+
+**Even when not using brief-driven mode**, the content-engine should tag calendar items with `variables` when creating video content. This ensures the analytics-loop can score and decompose all content, not just brief-driven content.
+
+When generating a calendar item of type `video`, include:
+
+```json
+{
+  "variables": {
+    "hook_type": "stat_lead",
+    "video_length": "30",
+    "voice_pace": "fast",
+    "text_overlay": "full_captions",
+    "background_type": "abstract_animated",
+    "music_energy": "upbeat",
+    "cta_style": "follow_cta"
+  }
+}
+```
+
+The variable values should match the structural choices made when planning the content. See `shared-references/analytics-schema.md` for the full taxonomy and valid values.
+
+---
+
 ## Skill Registry
 
 Available content creation skills and their interfaces:
 
 | Skill | Produces | Required Params | Optional Params |
 |-------|----------|-----------------|-----------------|
-| `remotion-video` | `.mp4` video | platform, message, style, duration | voiceover (script + voice), visual mode, music |
+| `remotion-video` | `.mp4` video | platform, message, visual_mode, style, duration | voiceover (script + voice), tts_provider (grok/gemini), music, template variables |
 | `image-gen` | `.png` image | concept, platform, style | text overlay, model (flash/pro), quantity |
 | `text-writer` | Text post (saved to file) | platform, topic, tone | format, CTA, hashtags |
 | `social-media` | Scheduled post | channel_id, text, timing | assets, hashtags, metadata |
+| `analytics-loop` | `briefs.json` | project_id | date_range, platform_filter |
 
 See `references/skill-registry.md` for detailed interface specs.
 
@@ -413,7 +520,7 @@ Store `asset_path` in `calendar.json` relative to the campaign directory so down
 
 ### Sequential Voiceover Generation
 
-When multiple videos in a calendar need AI voiceover, create them **one at a time** (not in parallel). Gemini TTS has a rate limit of 10 requests/minute/model. Running 3+ videos with voiceover in parallel will hit 429 errors.
+When multiple videos in a calendar need AI voiceover, create them **one at a time** (not in parallel). Both Grok and Gemini TTS have rate limits. Running 3+ videos with voiceover in parallel will hit 429 errors. Default TTS provider is Grok (`GROK_API_KEY`); fall back to Gemini if only `GEMINI_API_KEY` is available.
 
 ### Environment Variable Loading
 
