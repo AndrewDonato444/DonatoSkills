@@ -1,4 +1,4 @@
-# Gemini TTS Best Practices
+# TTS Best Practices (Grok & Gemini)
 
 ## Script Writing
 
@@ -41,6 +41,23 @@ it's the distribution.
 
 ## Voice Selection Guide
 
+### Grok TTS Voices (Default Provider)
+
+| Voice | Character | Good For |
+|-------|-----------|----------|
+| alloy | Versatile, balanced | General purpose, safe default |
+| ash | Measured, steady | Technical, serious content |
+| ballad | Warm, expressive | Storytelling, lifestyle |
+| coral | Friendly, warm | Approachable, community |
+| echo | Clear, neutral | Clean delivery, business |
+| fable | Distinctive, engaging | Narratives, character-driven |
+| nova | Upbeat, energetic | Startup, fitness, youth |
+| onyx | Deep, authoritative | Professional, luxury, finance |
+| sage | Wise, composed | Authority, thought leadership |
+| shimmer | Bright, light | Modern, tech, playful |
+
+### Gemini TTS Voices (Alternative Provider)
+
 | Voice | Character | Good For |
 |-------|-----------|----------|
 | Kore | Firm, authoritative | Professional, luxury, finance |
@@ -52,7 +69,7 @@ it's the distribution.
 | Leda | Warm, smooth | Lifestyle, hospitality |
 | Aoede | Melodic, pleasant | Friendly, approachable |
 
-*30 voices total — generate samples with `scripts/test-voices.ts`*
+*Gemini has 30 voices total — generate samples with `scripts/test-voices.ts`*
 
 ## Multi-Scene Strategy
 

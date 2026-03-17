@@ -482,9 +482,130 @@ const ProgressBar: React.FC<{
 
 ## Image Animations
 
-### Ken Burns (Slow Zoom + Pan)
+### Ken Burns Background (Full-Featured)
 
-Slowly zooms into an image. Creates movement from a still photo.
+Configurable Ken Burns effect for AI-generated or user-provided background images. Supports zoom-in, zoom-out, pan directions, and combinations. Use as a drop-in scene background layer.
+
+```tsx
+type KenBurnsDirection =
+  | "zoom-in"      // 1.0 → 1.15 (subtle zoom toward center)
+  | "zoom-out"     // 1.15 → 1.0 (pull back)
+  | "pan-left"     // image slides right-to-left
+  | "pan-right"    // image slides left-to-right
+  | "pan-up"       // image slides down-to-up
+  | "pan-down"     // image slides up-to-down
+  | "zoom-in-left" // zoom + pan combo
+  | "zoom-in-right"
+  | "zoom-out-up"
+  | "zoom-out-down";
+
+interface KenBurnsBackgroundProps {
+  src: string;                       // staticFile() path or URL
+  direction?: KenBurnsDirection;     // default: "zoom-in"
+  intensity?: number;                // 0-1, default 0.15 (how far to zoom/pan)
+  overlay?: string;                  // dark overlay for text legibility, e.g. "rgba(0,0,0,0.4)"
+}
+
+const KenBurnsBackground: React.FC<KenBurnsBackgroundProps> = ({
+  src,
+  direction = "zoom-in",
+  intensity = 0.15,
+  overlay = "rgba(0,0,0,0.35)",
+}) => {
+  const frame = useCurrentFrame();
+  const { durationInFrames } = useVideoConfig();
+
+  const progress = interpolate(frame, [0, durationInFrames], [0, 1], {
+    extrapolateRight: "clamp",
+  });
+
+  // Calculate transform based on direction
+  let scale = 1;
+  let translateX = 0;
+  let translateY = 0;
+  const panAmount = intensity * 100; // pixels as percentage
+
+  switch (direction) {
+    case "zoom-in":
+      scale = 1 + progress * intensity;
+      break;
+    case "zoom-out":
+      scale = 1 + intensity - progress * intensity;
+      break;
+    case "pan-left":
+      scale = 1 + intensity; // slight zoom to avoid edges
+      translateX = interpolate(progress, [0, 1], [panAmount / 2, -panAmount / 2]);
+      break;
+    case "pan-right":
+      scale = 1 + intensity;
+      translateX = interpolate(progress, [0, 1], [-panAmount / 2, panAmount / 2]);
+      break;
+    case "pan-up":
+      scale = 1 + intensity;
+      translateY = interpolate(progress, [0, 1], [panAmount / 2, -panAmount / 2]);
+      break;
+    case "pan-down":
+      scale = 1 + intensity;
+      translateY = interpolate(progress, [0, 1], [-panAmount / 2, panAmount / 2]);
+      break;
+    case "zoom-in-left":
+      scale = 1 + progress * intensity;
+      translateX = interpolate(progress, [0, 1], [0, -panAmount / 3]);
+      break;
+    case "zoom-in-right":
+      scale = 1 + progress * intensity;
+      translateX = interpolate(progress, [0, 1], [0, panAmount / 3]);
+      break;
+    case "zoom-out-up":
+      scale = 1 + intensity - progress * intensity;
+      translateY = interpolate(progress, [0, 1], [0, -panAmount / 3]);
+      break;
+    case "zoom-out-down":
+      scale = 1 + intensity - progress * intensity;
+      translateY = interpolate(progress, [0, 1], [0, panAmount / 3]);
+      break;
+  }
+
+  return (
+    <AbsoluteFill>
+      <Img
+        src={src}
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          transform: `scale(${scale}) translate(${translateX}%, ${translateY}%)`,
+        }}
+      />
+      {overlay && (
+        <AbsoluteFill style={{ backgroundColor: overlay }} />
+      )}
+    </AbsoluteFill>
+  );
+};
+```
+
+**Usage — alternate directions per scene for visual variety:**
+
+```tsx
+// Scene 1: slow zoom in
+<KenBurnsBackground src={staticFile("generated/scene-1-bg.png")} direction="zoom-in" />
+
+// Scene 2: pan left
+<KenBurnsBackground src={staticFile("generated/scene-2-bg.png")} direction="pan-left" />
+
+// Scene 3: zoom out with upward drift
+<KenBurnsBackground src={staticFile("generated/scene-3-bg.png")} direction="zoom-out-up" />
+```
+
+**Recommended direction cycling for multi-scene videos:**
+- 3 scenes: `zoom-in` → `pan-left` → `zoom-out`
+- 4 scenes: `zoom-in` → `pan-right` → `zoom-in-left` → `zoom-out`
+- 5+ scenes: alternate between zoom and pan variants, never repeat consecutive
+
+### Ken Burns (Simple — Zoom Only)
+
+Minimal version if you just need a slow zoom. For full directional control, use `KenBurnsBackground` above.
 
 ```tsx
 const KenBurns: React.FC<{ src: string; durationInFrames: number }> = ({ src, durationInFrames }) => {
@@ -675,6 +796,107 @@ const ParticleBG: React.FC<{ count?: number; color?: string }> = ({
   return <AbsoluteFill>{particles}</AbsoluteFill>;
 };
 ```
+
+### Scene Background (Mode Switcher)
+
+Drop-in background layer that switches between gradient, AI-generated (with Ken Burns), or static image modes. Use this in every scene component — it makes swapping background modes trivial.
+
+```tsx
+import { AbsoluteFill, Img, staticFile, useCurrentFrame, useVideoConfig, interpolate } from "remotion";
+
+type BackgroundMode =
+  | { type: "gradient"; colors: [string, string]; angle?: number }
+  | { type: "ai-generated"; asset: string; kenBurns?: KenBurnsDirection; intensity?: number; overlay?: string }
+  | { type: "image"; src: string; kenBurns?: KenBurnsDirection; intensity?: number; overlay?: string }
+  | { type: "solid"; color: string };
+
+const SceneBackground: React.FC<{ mode: BackgroundMode }> = ({ mode }) => {
+  const frame = useCurrentFrame();
+  const { durationInFrames } = useVideoConfig();
+
+  switch (mode.type) {
+    case "gradient": {
+      const rotation = interpolate(frame, [0, durationInFrames], [mode.angle ?? 135, (mode.angle ?? 135) + 30]);
+      return (
+        <AbsoluteFill style={{
+          background: `linear-gradient(${rotation}deg, ${mode.colors[0]}, ${mode.colors[1]})`,
+        }} />
+      );
+    }
+    case "ai-generated":
+    case "image": {
+      const src = mode.type === "ai-generated"
+        ? staticFile(`generated/${mode.asset}.png`)
+        : mode.src;
+      // If no Ken Burns, just show static image
+      if (!mode.kenBurns) {
+        return (
+          <AbsoluteFill>
+            <Img src={src} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            {mode.overlay && <AbsoluteFill style={{ backgroundColor: mode.overlay }} />}
+          </AbsoluteFill>
+        );
+      }
+      // Delegate to KenBurnsBackground for animated version
+      return <KenBurnsBackground src={src} direction={mode.kenBurns} intensity={mode.intensity} overlay={mode.overlay} />;
+    }
+    case "solid":
+      return <AbsoluteFill style={{ backgroundColor: mode.color }} />;
+  }
+};
+```
+
+**Usage in scene components:**
+
+```tsx
+// Text-only mode — gradient background
+<SceneBackground mode={{ type: "gradient", colors: ["#0A0A0A", "#1a1a2e"] }} />
+
+// AI-generated mode — Gemini image with Ken Burns
+<SceneBackground mode={{
+  type: "ai-generated",
+  asset: "scene-1-bg",
+  kenBurns: "zoom-in",
+  overlay: "rgba(0,0,0,0.4)",
+}} />
+
+// AI-generated mode — no Ken Burns (static image)
+<SceneBackground mode={{
+  type: "ai-generated",
+  asset: "scene-2-bg",
+  overlay: "rgba(0,0,0,0.3)",
+}} />
+
+// User-provided image with pan
+<SceneBackground mode={{
+  type: "image",
+  src: staticFile("user-photo.jpg"),
+  kenBurns: "pan-left",
+}} />
+```
+
+**Pattern for making background mode configurable per scene:**
+
+```tsx
+// In constants.ts — define background config per scene
+export const SCENE_BACKGROUNDS: BackgroundMode[] = [
+  { type: "ai-generated", asset: "scene-1-bg", kenBurns: "zoom-in", overlay: "rgba(0,0,0,0.4)" },
+  { type: "ai-generated", asset: "scene-2-bg", kenBurns: "pan-left", overlay: "rgba(0,0,0,0.35)" },
+  { type: "ai-generated", asset: "scene-3-bg", kenBurns: "zoom-out", overlay: "rgba(0,0,0,0.4)" },
+];
+
+// In each scene component — just read from the config
+const Scene1: React.FC = () => {
+  return (
+    <AbsoluteFill>
+      <SceneBackground mode={SCENE_BACKGROUNDS[0]} />
+      {/* Text content on top */}
+    </AbsoluteFill>
+  );
+};
+```
+
+---
 
 ### Safe Zone Overlay (Development Only)
 

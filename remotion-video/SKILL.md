@@ -17,7 +17,7 @@ The user tells you what video they want. **You guide them through an interactive
 
 ## Orchestrated Mode
 
-When invoked by the `content-engine` skill (or any orchestrator), the prompt will contain **"ORCHESTRATED MODE"** and all required parameters (platform, message, style, duration, voiceover). In this case:
+When invoked by the `content-engine` skill (or any orchestrator), the prompt will contain **"ORCHESTRATED MODE"** and all required parameters (platform, message, style, duration, voiceover, visual_mode, tts_provider). In this case:
 
 1. **Skip the interactive question flow entirely** — all decisions are already made
 2. **Confirm the plan in one line** — e.g., "Building 15s Twitter video with AI voiceover..."
@@ -102,16 +102,17 @@ Present questions as a grouped, conversational message. Here's the full question
 #### Always Ask:
 1. **Platform** — "What platform is this for? (TikTok, Instagram Reels, YouTube Shorts, Twitter/X, LinkedIn, or multiple?)"
 2. **Content** — "What's the message? What should the video say/show?"
+3. **Visual Mode** — "Do you want this to be:
+   - **Text-only** — animated text on gradient/particle backgrounds (fastest, no API calls)
+   - **AI-generated backgrounds** — I'll generate custom scene images using Gemini or OpenAI, with optional Ken Burns zoom/pan effect *(requires GEMINI_API_KEY or OPENAI_API_KEY)*
+   - **Your own assets** — you provide images/photos for me to animate (with optional Ken Burns)"
+
+   If AI-generated or user assets selected, follow up: "Want Ken Burns animation on the backgrounds? (slow zoom/pan that adds cinematic movement — recommended, or I can keep them static)"
 
 #### Ask If Multiple Personas Exist:
-3. **Persona** — "I see you have personas for [list them]. Who's this video for, or should I aim for a general brand feel?"
+4. **Persona** — "I see you have personas for [list them]. Who's this video for, or should I aim for a general brand feel?"
 
 #### Ask Based on Content:
-4. **Visual Mode** — "Do you want this to be:
-   - **Text-only** — animated text on styled backgrounds (fastest, no API calls)
-   - **AI-generated visuals** — I'll generate custom backgrounds and imagery using Nano Banana / Gemini *(requires GEMINI_API_KEY)*
-   - **Your own assets** — you provide images/photos for me to animate"
-
 5. **Duration** — "How long? (default: 15s for short-form, 30s for story-style)" *(skip if platform implies it)*
 
 #### Only If Not Covered by Design Tokens:
@@ -121,8 +122,11 @@ Present questions as a grouped, conversational message. Here's the full question
 #### Optional:
 8. **Voiceover** — "Want a voiceover narration?
    - **No voiceover** — video only (default)
-   - **AI voiceover** — I'll write a script, you approve it, then I generate audio and build the video around it *(requires GEMINI_API_KEY)*
+   - **AI voiceover (ElevenLabs)** — Highest quality voices, 45+ premade options *(requires ELEVENLABS_API_KEY)*
+   - **AI voiceover (Grok)** — Great quality, 10 voices *(requires GROK_API_KEY)*
+   - **AI voiceover (Gemini)** — Good quality, 30 voices *(requires GEMINI_API_KEY)*
    - **Script only** — I'll write the voiceover script but you record it yourself"
+   *(Check the project's `tts` config in `projects.json` for the default provider and voice. If no config, check which API keys are available. Multiple providers can be enabled for voice rotation.)*
 9. **Logo** — "Want a logo included? I can check your project for one, or you can point me to a file." *(Check `public/` and project root first — if you find one, just mention it: "I found logo.png — want me to include it?")*
 10. **Multi-platform** — "Want me to render for multiple platforms at once? I can create compositions for different aspect ratios from the same content."
 
@@ -134,8 +138,8 @@ After gathering answers, give a brief summary of what you'll build:
 > - **Platform**: TikTok (1080×1920, 30fps)
 > - **Duration**: 15 seconds (450 frames)
 > - **Style**: Premium/luxury using your design tokens (navy + gold palette)
-> - **Visuals**: AI-generated backgrounds via Nano Banana
-> - **Voiceover**: AI narration via Gemini TTS (Kore voice) *(or "None")*
+> - **Visuals**: Text-only *(or "AI-generated backgrounds via Gemini with Ken Burns zoom/pan" or "AI-generated backgrounds (static)" or "Your provided assets with Ken Burns")*
+> - **Voiceover**: AI narration via Grok TTS (Kore voice) *(or "via Gemini TTS" or "None")*
 > - **Scenes**: [brief scene breakdown]
 > - **Logo**: Your logo.png as an end-card reveal
 >
@@ -155,13 +159,19 @@ Pure Remotion — animated text, gradients, shapes, and data visualizations. No 
 
 Use gradient backgrounds, particle effects, geometric shapes, and the full animation patterns library in `references/animation-patterns.md`.
 
-### AI-Generated Visuals Mode (Nano Banana / Gemini)
+### AI-Generated Visuals Mode (Gemini or OpenAI)
 
-Uses Google's Gemini image generation API ("Nano Banana") to create custom backgrounds, scene imagery, and visual assets that Remotion then animates.
+Uses Gemini ("Nano Banana") or OpenAI (GPT Image) to create custom backgrounds, scene imagery, and visual assets that Remotion then animates. Read `image_gen.default_provider` from `projects.json` to pick the provider.
 
 **Requirements:**
-- `GEMINI_API_KEY` environment variable set, OR
+- `GEMINI_API_KEY` or `OPENAI_API_KEY` environment variable set, OR
 - User provides the key when asked
+
+**API Keys (check `.env` in DonatoSkills root or project root):**
+- `GEMINI_API_KEY` — used for Nano Banana image generation AND Gemini TTS (if selected)
+- `OPENAI_API_KEY` — used for OpenAI GPT Image generation
+- `GROK_API_KEY` — used for Grok TTS (if selected as voiceover provider)
+- `ELEVENLABS_API_KEY` — used for ElevenLabs TTS (if selected as voiceover provider)
 
 **How it works:**
 
@@ -236,33 +246,68 @@ generateAssets(assets).catch(console.error);
 
 **Available Nano Banana aspect ratios:** `"1:1"`, `"2:3"`, `"3:2"`, `"4:3"`, `"16:9"`, `"21:9"`, `"1:4"`, `"4:1"`, `"1:8"`, `"8:1"`
 
-**Model choices:**
+**Gemini model choices:**
 - `gemini-2.5-flash-image` — fast, good quality, best for bulk generation (recommended)
 - `gemini-3.1-flash-image-preview` — newer, speed-optimized
 - `gemini-3-pro-image-preview` — highest quality, slower, best for hero images
 
-**Prompt tips for video assets:**
-- Include the mood/lighting: "cinematic, golden hour, moody, high contrast"
-- Specify it's for a background: "suitable as a video background, clean composition, space for text overlay"
-- Match the project's brand: "luxury, premium, dark navy and gold accents" (pull from vision/tokens)
-- Be specific about style: "photorealistic", "flat illustration", "3D render", "abstract"
+**OpenAI model choices:**
+- `gpt-image-1` — highest quality, best text rendering (recommended)
+- `gpt-image-1-mini` — faster, cheaper, good for draft backgrounds
 
-**Using generated assets in Remotion:**
+**OpenAI sizes:** `1024x1024` (1:1), `1536x1024` (3:2 landscape), `1024x1536` (2:3 portrait), `auto`
+
+See `image-gen/references/openai-image-gen.md` for full OpenAI API reference.
+
+**Prompt tips for video backgrounds:**
+- Always include: "suitable as a video background, clean composition, space for text overlay in center"
+- Include mood/lighting: "cinematic, golden hour, moody, high contrast, dramatic shadows"
+- Match the project's brand: "luxury, premium, dark navy and gold accents" (pull from vision/tokens)
+- Be specific about style: "photorealistic", "flat illustration", "3D render", "abstract geometric"
+- For Ken Burns: avoid hard edges or borders — images should have content that extends beyond the visible frame so zoom/pan doesn't reveal blank space. Add "seamless, expansive composition, no borders" to prompts.
+- Keep visual consistency across scenes: use the same style keywords for all scene prompts in a video (e.g., all "dark moody cinematic" or all "bright flat illustration")
+- Avoid text in generated images — Remotion handles all text overlay
+
+**Using generated assets as scene backgrounds:**
+
+Every scene component should use the `SceneBackground` component (see `references/animation-patterns.md` → "Scene Background (Mode Switcher)") to make background mode swappable. This is the key pattern — it lets you switch between gradient and AI-generated backgrounds per scene without rewriting component code.
 
 ```tsx
-import { Img, staticFile } from "remotion";
+import { AbsoluteFill, staticFile } from "remotion";
 
-// Reference generated assets
-<Img src={staticFile("generated/scene-1-bg.png")} style={{
-  width: "100%",
-  height: "100%",
-  objectFit: "cover",
-}} />
+// In constants.ts — define background mode per scene
+export const SCENE_BACKGROUNDS = [
+  { type: "ai-generated" as const, asset: "scene-1-bg", kenBurns: "zoom-in" as const, overlay: "rgba(0,0,0,0.4)" },
+  { type: "ai-generated" as const, asset: "scene-2-bg", kenBurns: "pan-left" as const, overlay: "rgba(0,0,0,0.35)" },
+  { type: "ai-generated" as const, asset: "scene-3-bg", kenBurns: "zoom-out" as const, overlay: "rgba(0,0,0,0.4)" },
+];
+
+// In each scene — background is the bottom layer, text content on top
+<AbsoluteFill>
+  <SceneBackground mode={SCENE_BACKGROUNDS[0]} />
+  {/* Animated text, data, etc. rendered on top */}
+</AbsoluteFill>
 ```
+
+**Ken Burns direction cycling** — alternate directions across scenes for visual variety:
+- 3 scenes: `zoom-in` → `pan-left` → `zoom-out`
+- 4 scenes: `zoom-in` → `pan-right` → `zoom-in-left` → `zoom-out`
+- Never repeat the same direction on consecutive scenes
+
+**Overlay opacity guide** — adjust based on text density:
+- Light text on busy image: `rgba(0,0,0,0.5)` (heavier overlay)
+- Simple title over clean image: `rgba(0,0,0,0.25)` (lighter overlay)
+- Default: `rgba(0,0,0,0.35)`
+
+**No Ken Burns option** — if the user says "no Ken Burns" or the image is a flat graphic/illustration, omit the `kenBurns` property. The `SceneBackground` component renders it as a static full-bleed image.
 
 ### User-Provided Assets Mode
 
-User supplies their own images/photos. Copy them to `public/` and animate with Ken Burns, reveals, and transitions.
+User supplies their own images/photos. Copy them to `public/` and use the same `SceneBackground` component with `type: "image"` and optional Ken Burns:
+
+```tsx
+{ type: "image", src: staticFile("user-photo.jpg"), kenBurns: "pan-left", overlay: "rgba(0,0,0,0.3)" }
+```
 
 ---
 
@@ -306,7 +351,105 @@ Write a voiceover script for each scene. Follow these rules:
 
 ### Step 2: Generate Audio
 
+The skill supports two TTS providers: **Grok** (default) and **Gemini**. Use whichever the user selected, or whichever API key is available.
+
+#### Grok TTS (Default)
+
 Create a `scripts/generate-voiceover.ts` in the video project:
+
+```typescript
+import OpenAI from "openai";
+import * as fs from "node:fs";
+import * as path from "node:path";
+
+if (!process.env.GROK_API_KEY) {
+  throw new Error("GROK_API_KEY is not set. Add it to your .env file or export it in your shell.");
+}
+
+const client = new OpenAI({
+  apiKey: process.env.GROK_API_KEY,
+  baseURL: "https://api.x.ai/v1",
+});
+
+interface SceneScript {
+  name: string;       // e.g., "scene-1-hook"
+  script: string;     // the voiceover text
+  direction?: string; // e.g., "confident, direct" (prepended to script)
+}
+
+async function generateVoiceover(scenes: SceneScript[], voice: string = "alloy") {
+  const outputDir = path.join(__dirname, "..", "public", "audio");
+  fs.mkdirSync(outputDir, { recursive: true });
+
+  const manifest: Record<string, { file: string; durationSec: number }> = {};
+
+  for (const scene of scenes) {
+    console.log(`Generating: ${scene.name}...`);
+    const input = scene.direction
+      ? `[${scene.direction}] ${scene.script}`
+      : scene.script;
+
+    const response = await client.audio.speech.create({
+      model: "grok-3-fast-tts",
+      voice: voice,
+      input: input,
+      response_format: "wav",
+    });
+
+    const arrayBuffer = await response.arrayBuffer();
+    const audioBuffer = Buffer.from(arrayBuffer);
+
+    const filepath = path.join(outputDir, `${scene.name}.wav`);
+    fs.writeFileSync(filepath, audioBuffer);
+
+    // Calculate duration from WAV file (header is 44 bytes, 24kHz, 16-bit mono)
+    const pcmSize = audioBuffer.length - 44;
+    const sampleRate = audioBuffer.readUInt32LE(24);
+    const bitsPerSample = audioBuffer.readUInt16LE(34);
+    const channels = audioBuffer.readUInt16LE(22);
+    const durationSec = pcmSize / (sampleRate * (bitsPerSample / 8) * channels);
+    manifest[scene.name] = { file: `audio/${scene.name}.wav`, durationSec };
+    console.log(`  Saved: ${filepath} (${durationSec.toFixed(1)}s)`);
+  }
+
+  // Write timing manifest for Remotion to consume
+  const manifestPath = path.join(outputDir, "manifest.json");
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+  console.log(`Timing manifest: ${manifestPath}`);
+
+  return manifest;
+}
+
+// Define scenes for this video
+const scenes: SceneScript[] = [
+  {
+    name: "scene-1-hook",
+    script: "Your hook script here...",
+    direction: "confident, direct",
+  },
+  {
+    name: "scene-2-body",
+    script: "Body script here...",
+  },
+  {
+    name: "scene-3-cta",
+    script: "CTA script here...",
+  },
+];
+
+generateVoiceover(scenes).catch(console.error);
+```
+
+**Grok TTS voice options:** `alloy`, `ash`, `ballad`, `coral`, `echo`, `fable`, `nova`, `onyx`, `sage`, `shimmer`
+
+**Grok TTS npm dependency:**
+```bash
+npm i openai
+```
+
+#### Gemini TTS (Alternative)
+
+If the user selects Gemini TTS (or only `GEMINI_API_KEY` is available), use this template instead:
 
 ```typescript
 import { GoogleGenAI } from "@google/genai";
@@ -417,7 +560,64 @@ const scenes: SceneScript[] = [
 generateVoiceover(scenes).catch(console.error);
 ```
 
+#### ElevenLabs TTS (Premium Quality)
+
+If the user selects ElevenLabs (or the project's `tts.default_provider` is `"elevenlabs"`), use the template in `references/elevenlabs-tts.md`. Key differences from Grok/Gemini:
+
+- **No SDK needed** — uses `fetch()` directly against `https://api.elevenlabs.io/v1/text-to-speech/{voice_id}`
+- **Auth header**: `xi-api-key` (not `Authorization: Bearer`)
+- **Output**: request `pcm_24000` format, then wrap in WAV header (same `writeWavSync` pattern as Gemini)
+- **Voice selection**: pass `voice_id` in the URL path (not in the request body)
+- **No direction prompts**: control tone via `voice_settings.stability` and `voice_settings.style` instead
+
+```typescript
+// Quick example — see references/elevenlabs-tts.md for full template
+const response = await fetch(
+  `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+  {
+    method: "POST",
+    headers: {
+      "xi-api-key": process.env.ELEVENLABS_API_KEY!,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      text: scene.script,
+      model_id: "eleven_multilingual_v2",
+      output_format: "pcm_24000",
+    }),
+  },
+);
+const pcmBuffer = Buffer.from(await response.arrayBuffer());
+writeWavSync(filepath, pcmBuffer, 24000);
+```
+
+See `references/elevenlabs-tts.md` for the full generate-voiceover template, voice list, and model options.
+
+#### TTS Provider Selection Logic
+
+When deciding which TTS provider to use:
+
+1. **Project config** → read `tts.default_provider` from `projects.json` (most reliable)
+2. **User explicitly chose** → use that provider
+3. **Orchestrated mode** specifies `tts_provider` → use that
+4. **Only one API key available** → use that provider automatically
+5. **Multiple keys, no preference** → use project default, or ElevenLabs > Grok > Gemini (quality order)
+6. **No keys available** → offer "Script only" mode
+
+**Multi-provider rotation**: If `tts.providers` has multiple entries, the content-engine can rotate voices across videos in a campaign (e.g., ElevenLabs Adam for video 1, Grok onyx for video 2). The skill picks the provider and voice from the project config unless overridden.
+
 **Voice selection by project personality:**
+
+*Grok voices:*
+
+| Personality | Suggested Voices |
+|------------|-----------------|
+| Professional/Luxury | onyx (deep), sage (authoritative), echo (clear) |
+| Energetic/Fun | nova (upbeat), shimmer (bright), alloy (versatile) |
+| Warm/Friendly | coral, ballad |
+| Technical/Serious | ash, fable |
+
+*Gemini voices:*
 
 | Personality | Suggested Voices |
 |------------|-----------------|
@@ -426,7 +626,17 @@ generateVoiceover(scenes).catch(console.error);
 | Warm/Friendly | Aoede, Leda |
 | Technical/Serious | Fenrir, Enceladus |
 
-See `references/tts-best-practices.md` for the full voice list (30 voices), script writing tips, and direction prompt patterns.
+*ElevenLabs voices:*
+
+| Personality | Suggested Voices |
+|------------|-----------------|
+| Professional/Authority | Adam (deep), Rachel (calm), Daniel (news) |
+| Energetic/Fun | Jeremy (excited), Charlotte (engaging) |
+| Warm/Conversational | Matilda (warm), Charlie (casual) |
+| News/Credible | Alice (confident), Drew (well-rounded) |
+| Calm/ASMR | Emily (meditation), Thomas (soothing) |
+
+See `references/tts-best-practices.md` for Gemini voice details, `references/elevenlabs-tts.md` for ElevenLabs voice IDs and API details, and script writing tips.
 
 ### Voiceover Production Rules
 
@@ -434,10 +644,12 @@ See `references/tts-best-practices.md` for the full voice list (30 voices), scri
 
 **Wire audio into components immediately.** After generating voiceover WAV files, update the video component's `<Audio>` elements in the same step. Do NOT leave audio commented out or referencing placeholder files — this is a common source of silent videos.
 
-**Gemini TTS rate limit: 10 requests/minute/model.** When generating voiceover for multiple scenes:
+**TTS rate limits.** When generating voiceover for multiple scenes:
 - Generate scenes **sequentially** (not in parallel)
 - If you hit a 429, retry with exponential backoff (15s, 30s, 45s)
 - When the content-engine orchestrates multiple videos with voiceover, generate them **one video at a time**, not in parallel
+- Gemini TTS: 10 requests/minute/model
+- Grok TTS: check current rate limits at x.ai docs
 
 **Linter/formatter recursion hazard.** If you add retry logic around `ai.models.generateContent(...)`, linters may auto-rename the inner API call to match the wrapper function name, causing infinite recursion (`RangeError: Maximum call stack size exceeded`). To prevent this:
 ```typescript
@@ -563,9 +775,15 @@ If using AI-generated visuals, also install:
 npm i @google/genai
 ```
 
-If using AI voiceover, also install:
+If using AI voiceover, also install (depending on TTS provider):
 ```bash
+# Grok TTS
+npm i openai
+
+# Gemini TTS
 npm i @google/genai
+
+# ElevenLabs TTS — no npm package needed (uses fetch)
 ```
 
 File structure:
@@ -577,6 +795,8 @@ videos/<project-name>/
 │   ├── Video.tsx             # Main video component
 │   ├── components/           # Reusable animated components
 │   │   ├── AnimatedText.tsx
+│   │   ├── SceneBackground.tsx  # Background mode switcher (gradient/AI/image)
+│   │   ├── KenBurnsBackground.tsx # Ken Burns zoom/pan for image backgrounds
 │   │   ├── Logo.tsx          # (if logo provided)
 │   │   └── ...
 │   └── lib/
@@ -638,7 +858,8 @@ load_env .env
 load_env ../../.env
 
 # Generate AI voiceover first (if applicable — audio drives timing)
-if [ -f scripts/generate-voiceover.ts ] && [ -n "$GEMINI_API_KEY" ]; then
+# Supports both Grok TTS (GROK_API_KEY) and Gemini TTS (GEMINI_API_KEY)
+if [ -f scripts/generate-voiceover.ts ] && { [ -n "${GROK_API_KEY:-}" ] || [ -n "${GEMINI_API_KEY:-}" ]; }; then
   echo "Generating AI voiceover..."
   npx tsx --no-cache scripts/generate-voiceover.ts
 fi
