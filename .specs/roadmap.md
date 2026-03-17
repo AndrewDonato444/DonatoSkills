@@ -23,9 +23,9 @@
 
 | Status | Count |
 |--------|-------|
-| ✅ Completed | 0 |
+| ✅ Completed | 2 |
 | 🔄 In Progress | 0 |
-| ⬜ Pending | 3 |
+| ⬜ Pending | 1 |
 | ⏸️ Blocked | 0 |
 
 **Last updated**: 2026-03-16
@@ -58,8 +58,8 @@
 
 | # | Feature | Source | Jira | Complexity | Deps | Status |
 |---|---------|--------|------|------------|------|--------|
-| 20 | Analytics: Variable inference from post content | code-review S8 | - | M | - | ⬜ |
-| 21 | Analytics: Per-channel overrides (requires 3+ cycles) | code-review S9 | - | M | 20 | ⬜ |
+| 20 | Analytics: Variable inference from post content | code-review S8 | - | M | - | ✅ |
+| 21 | Analytics: Per-channel overrides (requires 3+ cycles) | code-review S9 | - | M | 20 | ✅ |
 | 22 | Analytics: Pairwise combination tracking | code-review S10 | - | S | - | ⬜ |
 
 ---
