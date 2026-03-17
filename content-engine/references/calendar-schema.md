@@ -46,6 +46,9 @@ Calendars are stored at `content-engine/calendars/<campaign-slug>/calendar.json`
       "asset_path": null,
       "asset_url": null,
       "buffer_post_id": null,
+      "late_post_id": null,
+      "brief_id": null,
+      "variables": null,
       "error": null,
       "created_at": null,
       "scheduled_at": null
@@ -65,6 +68,38 @@ Calendars are stored at `content-engine/calendars/<campaign-slug>/calendar.json`
   }
 }
 ```
+
+### Analytics Loop Fields (optional)
+
+These fields support the analytics feedback loop. All are nullable and backward-compatible — existing calendars without them continue to work.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `late_post_id` | string \| null | Late.Dev post ID for analytics correlation (set after scheduling via Late.Dev) |
+| `brief_id` | string \| null | ID of the analytics-loop brief that generated this item (set when using brief-driven mode) |
+| `variables` | object \| null | Structural variables for analytics decomposition (see `shared-references/analytics-schema.md`) |
+
+**Variables object** (when present):
+
+```json
+{
+  "variables": {
+    "hook_type": "stat_lead",
+    "video_length": "30",
+    "voice_pace": "fast",
+    "text_overlay": "karaoke_highlight",
+    "background_type": "stock_montage",
+    "music_energy": "upbeat",
+    "cta_style": "follow_cta"
+  }
+}
+```
+
+The content-engine writes these when creating calendar items (especially in brief-driven mode). The analytics-loop reads them to correlate content structure with post performance.
+
+**Full variable taxonomy**: `analytics-loop/references/variable-taxonomy.md`
+
+---
 
 ## Status Lifecycle
 
