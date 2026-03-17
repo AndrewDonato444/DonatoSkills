@@ -14,6 +14,9 @@ Content-Type: application/json
 ## Common Workflows
 
 ### 1. Get Organization ID (do this first)
+
+> **Tip:** If you've already stored `organization_id` in your project's `projects.json` Buffer config, skip this call — it saves one API request per session. Run this once to get the ID, then backfill it into `projects.json`.
+
 ```bash
 curl -s -X POST https://api.buffer.com \
   -H "Authorization: Bearer $BUFFER_API_KEY" \

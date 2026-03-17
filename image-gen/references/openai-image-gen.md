@@ -196,3 +196,9 @@ generateImage(job).catch(console.error);
 | LinkedIn | Share | `1536x1024` | 3:2 landscape |
 | YouTube | Thumbnail | `1536x1024` | 3:2 (closest to 16:9) |
 | Pinterest | Pin | `1024x1536` | 2:3 portrait |
+
+---
+
+## See Also
+
+- [Nano Banana Best Practices](./nano-banana-best-practices.md) — Gemini image generation best practices, including text rendering tips, JSON-structured prompts, and social media aspect ratios.

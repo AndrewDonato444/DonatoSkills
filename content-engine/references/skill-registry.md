@@ -50,6 +50,7 @@ The downstream skill will:
 ```
 Use the remotion-video skill to create a video. ORCHESTRATED MODE -- all parameters provided, skip questions and build directly.
 
+- Project: [project_id from projects.json]
 - Platform: [platform] ([width]x[height], [fps]fps)
 - Message: [what the video says/shows]
 - Visual Mode: [text-only / ai-generated / user-provided]
@@ -99,6 +100,7 @@ After rendering, the skill produces:
 ```
 Use the social-media skill to schedule a post. ORCHESTRATED MODE -- all parameters provided, skip questions and schedule directly.
 
+- Project: [project_id from projects.json]
 - Channel: [channel_id] ([platform name])
 - Caption: [full caption with hashtags]
 - Timing: [ISO datetime / "queue" / "now"]
@@ -110,6 +112,7 @@ Use the social-media skill to schedule a post. ORCHESTRATED MODE -- all paramete
 ```
 Use the social-media skill to schedule a post. ORCHESTRATED MODE -- all parameters provided, skip questions and schedule directly.
 
+- Project: [project_id from projects.json]
 - Scheduler: late
 - Account: [account_id] ([platform name])
 - Platform: [twitter / instagram / linkedin / etc.]
@@ -157,6 +160,7 @@ After scheduling, returns:
 ```
 Use the image-gen skill to create an image. ORCHESTRATED MODE -- all parameters provided, skip questions and generate directly.
 
+- Project: [project_id from projects.json]
 - Provider: [gemini / openai] (read from project image_gen.default_provider)
 - Concept: [what the image shows]
 - Platform: [platform] ([width]x[height], [ratio])
@@ -201,6 +205,7 @@ After generation, the skill produces:
 ```
 Use the text-writer skill to write a post. ORCHESTRATED MODE -- all parameters provided, skip questions and write directly.
 
+- Project: [project_id from projects.json]
 - Platform: [platform]
 - Topic: [what the post is about]
 - Tone: [writing style]

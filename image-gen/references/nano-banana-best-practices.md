@@ -152,3 +152,9 @@ For quick/draft use, generate with text but always visually verify before publis
 | Inconsistent batch style | Use JSON template with only subject/text varying |
 | Ignoring rate limits | Add 2s delay between requests, exponential backoff on 429 |
 | **Text misspelled in output** | Generate image without text, add text programmatically |
+
+---
+
+## See Also
+
+- [OpenAI Image Generation Reference](./openai-image-gen.md) — alternate provider with superior text rendering and transparent background support. Includes a side-by-side comparison table.

@@ -25,10 +25,10 @@
 |--------|-------|
 | ✅ Completed | 0 |
 | 🔄 In Progress | 0 |
-| ⬜ Pending | 0 |
+| ⬜ Pending | 3 |
 | ⏸️ Blocked | 0 |
 
-**Last updated**: <!-- timestamp -->
+**Last updated**: 2026-03-16
 
 ---
 
@@ -52,13 +52,15 @@
 
 ---
 
-## Phase 3: Enhancement
+## Phase 3: Analytics Loop Enhancement
 
-> Secondary features, polish, and optimizations.
+> Filling in algorithm stubs identified during code review audit.
 
 | # | Feature | Source | Jira | Complexity | Deps | Status |
 |---|---------|--------|------|------------|------|--------|
-| <!-- 20 --> | <!-- Dark mode --> | <!-- slack:C123/ts --> | <!-- PROJ-120 --> | <!-- S --> | <!-- - --> | <!-- ⬜ --> |
+| 20 | Analytics: Variable inference from post content | code-review S8 | - | M | - | ⬜ |
+| 21 | Analytics: Per-channel overrides (requires 3+ cycles) | code-review S9 | - | M | 20 | ⬜ |
+| 22 | Analytics: Pairwise combination tracking | code-review S10 | - | S | - | ⬜ |
 
 ---
 
