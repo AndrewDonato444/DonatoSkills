@@ -87,7 +87,7 @@ function inferVariables(post) {
   const confidences = {};
 
   const content = post.content || "";
-  const duration = post.analytics?.duration || null;
+  const duration = post.analytics?.duration ?? null;
   const trimmed = content.trim();
 
   // --- hook_type ---
