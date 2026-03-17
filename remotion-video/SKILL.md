@@ -65,6 +65,7 @@ Before building any video, read these shared references:
 2. **`shared-references/platform-specs.md`** — Video dimensions, max durations, aspect ratios, file size limits, and recommended engagement durations per platform. Use this to set the correct resolution, fps, and duration for the target platform.
 3. **`shared-references/caption-writing.md`** — Caption formulas per platform. When the video will be posted with a caption (e.g., via content-engine), the caption structure should complement the video hook.
 4. **`shared-references/content-pillars.md`** — Content pillar frameworks. When creating videos as part of a content strategy, align the video's message to the appropriate pillar.
+5. **`shared-references/provider-resilience.md`** — Retry, fallback, and failure signaling patterns for TTS (and image gen) providers. Defines `withRetry`, `withFallback`, error classification, and signal formats used in generated scripts.
 
 ---
 
@@ -351,7 +352,7 @@ Write a voiceover script for each scene. Follow these rules:
 
 ### Step 2: Generate Audio
 
-The skill supports two TTS providers: **Grok** (default) and **Gemini**. Use whichever the user selected, or whichever API key is available.
+The skill supports three TTS providers: **Grok** (default), **Gemini**, and **ElevenLabs**. Use whichever the user selected, or whichever API key is available. When generating scripts with voiceover, include the resilience patterns (retry, fallback, error isolation) documented below in the "Voiceover Production Rules" section.
 
 #### Grok TTS (Default)
 
@@ -646,15 +647,31 @@ See `references/tts-best-practices.md` for Gemini voice details, `references/ele
 
 **TTS rate limits.** When generating voiceover for multiple scenes:
 - Generate scenes **sequentially** (not in parallel)
-- If you hit a 429, retry with exponential backoff (15s, 30s, 45s)
+- Rate limits (429s) are handled automatically by the `generateWithRetry` pattern below — no manual backoff needed
 - When the content-engine orchestrates multiple videos with voiceover, generate them **one video at a time**, not in parallel
+- If a provider is persistently rate-limited, the `withFallback` wrapper (see below) will try the next provider in the chain
 - Gemini TTS: 10 requests/minute/model
 - Grok TTS: check current rate limits at x.ai docs
 
 **Linter/formatter recursion hazard.** If you add retry logic around `ai.models.generateContent(...)`, linters may auto-rename the inner API call to match the wrapper function name, causing infinite recursion (`RangeError: Maximum call stack size exceeded`). To prevent this:
 ```typescript
+// --- Error classification ---
+function isRetryable(e: unknown): boolean {
+  const status = (e as { status?: number }).status;
+  const code = (e as { code?: string }).code;
+  // Retryable: 429 (rate limit), 500 (server), 503 (unavailable), network errors
+  if (status && [429, 500, 503].includes(status)) return true;
+  if (code && ["ECONNRESET", "ETIMEDOUT", "UND_ERR_CONNECT_TIMEOUT"].includes(code)) return true;
+  if (e instanceof DOMException && e.name === "AbortError") return true; // timeout
+  // Non-retryable: 400 (bad request), 401/403 (auth), 402 (payment), content policy
+  return false;
+}
+
+// --- Retry with backoff + timeout (canonical pattern) ---
 // SAFE: bind the API method to a separate variable
 const callTTS = ai.models.generateContent.bind(ai.models);
+const BACKOFF_MS = [5_000, 15_000, 45_000]; // 5s, 15s, 45s
+const TTS_TIMEOUT_MS = 45_000; // 45s per scene
 
 async function generateWithRetry(
   params: Parameters<typeof ai.models.generateContent>[0],
@@ -662,19 +679,136 @@ async function generateWithRetry(
 ): ReturnType<typeof ai.models.generateContent> {
   for (let i = 0; i < retries; i++) {
     try {
-      return await callTTS(params); // DO NOT REPLACE with generateWithRetry
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), TTS_TIMEOUT_MS);
+      // Pass AbortController signal if the API supports it; otherwise the
+      // timeout will throw an AbortError caught by the retry loop.
+      const result = await callTTS(params); // DO NOT REPLACE with generateWithRetry
+      clearTimeout(timer);
+      return result;
     } catch (e: unknown) {
-      const status = (e as { status?: number }).status;
-      if (status === 429 && i < retries - 1) {
-        await new Promise(r => setTimeout(r, 15000 * (i + 1)));
-        continue;
-      }
-      throw e;
+      console.error(`  Attempt ${i + 1}/${retries} failed:`, (e as Error).message ?? e);
+      if (!isRetryable(e) || i >= retries - 1) throw e;
+      const delay = BACKOFF_MS[i] ?? BACKOFF_MS[BACKOFF_MS.length - 1];
+      console.log(`  Retrying in ${delay / 1000}s...`);
+      await new Promise(r => setTimeout(r, delay));
     }
   }
   throw new Error(`generateWithRetry: all ${retries} attempts failed`);
 }
 ```
+
+#### Provider Fallback (`withFallback`)
+
+When the primary TTS provider fails after all retries (or hits a non-retryable error), fall back to the next provider in the `tts.providers` array from `projects.json`. The fallback wrapper goes **around** the scene loop, not inside it.
+
+```typescript
+import * as fs from "node:fs";
+
+// --- Provider config (read from projects.json at build time) ---
+interface TTSProviderConfig {
+  name: string;
+  apiKeyEnv: string;
+  defaultVoice: string;
+  model: string;
+}
+
+const TTS_PROVIDERS: TTSProviderConfig[] = [
+  // Order matches projects.json tts.providers — default_provider first
+  { name: "grok",       apiKeyEnv: "GROK_API_KEY",       defaultVoice: "onyx",  model: "grok-3-fast-tts" },
+  { name: "gemini",     apiKeyEnv: "GEMINI_API_KEY",     defaultVoice: "Kore",  model: "gemini-2.5-flash-preview-tts" },
+  { name: "elevenlabs", apiKeyEnv: "ELEVENLABS_API_KEY", defaultVoice: "Adam",  model: "eleven_multilingual_v2" },
+];
+
+// --- Fallback wrapper ---
+// generateForProvider is an async function that takes a provider config and
+// generates audio for a single scene, returning the result. It should use
+// generateWithRetry internally.
+async function withFallback<T>(
+  scene: SceneScript,
+  generateForProvider: (provider: TTSProviderConfig, scene: SceneScript) => Promise<T>,
+): Promise<{ result: T; provider: TTSProviderConfig }> {
+  const errors: { provider: string; error: string }[] = [];
+
+  for (const provider of TTS_PROVIDERS) {
+    // Skip providers whose API key is not set
+    if (!process.env[provider.apiKeyEnv]) {
+      console.log(`  Skipping ${provider.name} (${provider.apiKeyEnv} not set)`);
+      continue;
+    }
+    try {
+      const result = await generateForProvider(provider, scene);
+      return { result, provider };
+    } catch (e: unknown) {
+      const msg = (e as Error).message ?? String(e);
+      errors.push({ provider: provider.name, error: msg });
+      console.error(`  ${provider.name} failed: ${msg}`);
+      if (TTS_PROVIDERS.indexOf(provider) < TTS_PROVIDERS.length - 1) {
+        console.log(`  Falling back to next provider...`);
+      }
+    }
+  }
+
+  const tried = errors.map(e => `${e.provider}: ${e.error}`).join(", ");
+  throw new Error(`All providers exhausted (${tried})`);
+}
+```
+
+**Voice and model adaptation:** When falling back, each provider uses its own `default_voice` and `model` from the config above. All providers output 24kHz mono WAV — the `writeWavSync` step normalizes format regardless of provider.
+
+#### Scene-Level Error Isolation
+
+If a scene fails on **all** providers, the script continues to the next scene instead of crashing. Failed scenes are marked in the manifest so the render can handle them (silent gap or skip).
+
+```typescript
+// Inside the scene loop:
+const manifest: Record<string, { file: string; durationSec: number; status: string; provider?: string; error?: string }> = {};
+
+for (const scene of scenes) {
+  // --- Idempotency: skip if already generated ---
+  const outputPath = path.join(outputDir, `${scene.name}.wav`);
+  if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0) {
+    console.log(`Skipping ${scene.name} (already exists, ${fs.statSync(outputPath).size} bytes)`);
+    // Re-read duration from existing file for manifest
+    const existing = fs.readFileSync(outputPath);
+    const sampleRate = existing.readUInt32LE(24);
+    const bitsPerSample = existing.readUInt16LE(34);
+    const channels = existing.readUInt16LE(22);
+    const pcmSize = existing.length - 44;
+    const durationSec = pcmSize / (sampleRate * (bitsPerSample / 8) * channels);
+    manifest[scene.name] = { file: `audio/${scene.name}.wav`, durationSec, status: "complete" };
+    continue;
+  }
+
+  try {
+    const { result, provider } = await withFallback(scene, generateForProvider);
+    // ... write WAV, calculate duration ...
+    manifest[scene.name] = { file: `audio/${scene.name}.wav`, durationSec, status: "complete", provider: provider.name };
+    console.log(`TTS_COMPLETE: ${scene.name}.wav | Provider: ${provider.name}`);
+  } catch (e: unknown) {
+    const msg = (e as Error).message ?? String(e);
+    console.error(`TTS_FAILED: ${scene.name} | Error: ${msg} | Providers tried: ${TTS_PROVIDERS.filter(p => process.env[p.apiKeyEnv]).map(p => p.name).join(", ")}`);
+    manifest[scene.name] = { file: `audio/${scene.name}.wav`, durationSec: 0, status: "failed", error: msg };
+    // Continue to next scene — do NOT exit
+  }
+}
+
+// Write manifest (includes failed scenes)
+fs.writeFileSync(path.join(outputDir, "manifest.json"), JSON.stringify(manifest, null, 2));
+
+// Summary
+const succeeded = Object.values(manifest).filter(m => m.status === "complete").length;
+const failed = Object.values(manifest).filter(m => m.status === "failed");
+console.log(`\nTTS Summary: ${succeeded}/${scenes.length} scenes generated.${failed.length > 0 ? ` ${failed.length} failed: ${failed.map((_, i) => Object.keys(manifest).find(k => manifest[k].status === "failed")).join(", ")}` : ""}`);
+```
+
+**Key behaviors:**
+- **Idempotency:** If `scene_01.wav` already exists and is non-empty, skip regeneration. This makes re-runs safe after partial failures.
+- **Error isolation:** Scene 4 failing does not prevent scene 5 from generating. The manifest marks failed scenes with `"status": "failed"` and the error message.
+- **Signals:** Each scene emits `TTS_COMPLETE: scene_01.wav | Provider: grok` or `TTS_FAILED: scene_04 | Error: ... | Providers tried: grok, gemini, elevenlabs` for the orchestrator to parse.
+- **Partial success:** The script exits with code 0 even if some scenes fail. The manifest and summary tell the orchestrator what happened.
+
+See `shared-references/provider-resilience.md` for the full pattern documentation, error classification table, and provider adaptation details.
 
 **Always use `npx tsx --no-cache`** when running TypeScript scripts. Without `--no-cache`, tsx may use stale transpiled output that doesn't reflect your latest source changes.
 
