@@ -231,7 +231,7 @@ Determine which skill to invoke based on the item's `type`:
 When invoking `remotion-video`, provide ALL of these in your prompt so it skips questions:
 - Platform and dimensions
 - Content/message (what the video says)
-- Visual mode: text-only | ai-generated | user-assets
+- Visual mode: text-only | ai-generated | user-provided
 - Visual style (colors, vibe, animation style)
 - Duration
 - Voiceover: yes/no, and if yes: the script, TTS provider (grok, gemini, or elevenlabs), and voice name

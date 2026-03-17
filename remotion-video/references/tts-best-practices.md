@@ -1,4 +1,4 @@
-# TTS Best Practices (Grok & Gemini)
+# TTS Best Practices (Grok, Gemini & ElevenLabs)
 
 ## Script Writing
 
@@ -70,6 +70,22 @@ it's the distribution.
 | Aoede | Melodic, pleasant | Friendly, approachable |
 
 *Gemini has 30 voices total — generate samples with `scripts/test-voices.ts`*
+
+### ElevenLabs Voices (Premium Provider)
+
+| Voice | Character | Good For |
+|-------|-----------|----------|
+| Adam | Deep, warm | Professional narration, authority |
+| Antoni | Friendly, conversational | Explainers, casual content |
+| Arnold | Strong, confident | Bold statements, calls to action |
+| Bella | Warm, engaging | Lifestyle, storytelling |
+| Domi | Energetic, dynamic | High-energy, startup content |
+| Elli | Youthful, bright | Tech, modern, playful |
+| Josh | Clear, steady | Business, clean delivery |
+| Rachel | Polished, professional | Corporate, polished content |
+| Sam | Neutral, versatile | General purpose, safe default |
+
+*ElevenLabs offers custom voice cloning and fine-tuned stability/similarity controls. See `references/elevenlabs-tts.md` for full API reference and voice settings.*
 
 ## Multi-Scene Strategy
 

@@ -17,9 +17,10 @@ Calendars are stored at `content-engine/calendars/<campaign-slug>/calendar.json`
     },
     "channels": [
       {
-        "id": "buffer_channel_id",
+        "id": "channel_or_account_id",
         "service": "twitter",
-        "name": "@username"
+        "name": "@username",
+        "scheduler": "buffer"
       }
     ],
     "content_pillars": ["product", "education", "personality", "social-proof"],
@@ -33,7 +34,8 @@ Calendars are stored at `content-engine/calendars/<campaign-slug>/calendar.json`
       "time": "14:00",
       "timezone": "America/New_York",
       "platform": "twitter",
-      "channel_id": "buffer_channel_id",
+      "channel_id": "channel_or_account_id",
+      "scheduler": "buffer",
       "type": "video",
       "content_pillar": "product",
       "concept": "15s product demo with voiceover showing key feature",
@@ -109,9 +111,9 @@ creating     -- Content creation skill is working on it
 created      -- Content file exists locally (asset_path set)
 uploading    -- Uploading to Cloudinary
 uploaded     -- Cloudinary URL available (asset_url set)
-scheduling   -- Sending to Buffer
-scheduled    -- Buffer post created (buffer_post_id set)
-posted       -- Buffer confirms it was published
+scheduling   -- Sending to scheduling backend (Buffer or Late.Dev)
+scheduled    -- Post created (buffer_post_id or late_post_id set)
+posted       -- Scheduling backend confirms it was published
 failed       -- Error at any step (error field has details)
 ```
 

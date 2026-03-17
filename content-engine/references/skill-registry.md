@@ -23,7 +23,7 @@ The downstream skill will:
 
 **Produces**: `.mp4` video file
 **Skill location**: `/remotion-video/SKILL.md`
-**Output location**: `videos/<project-name>/out/video.mp4`
+**Output location**: `videos/<campaign-slug>/item-<NNN>/out/video.mp4` (standalone) or `content-engine/calendars/<campaign-slug>/videos/<item-id>/out/video.mp4` (orchestrated)
 
 ### Required Parameters (for orchestrated mode)
 
@@ -39,8 +39,8 @@ The downstream skill will:
 | Parameter | Description | Example |
 |-----------|-------------|---------|
 | voiceover | AI voiceover with script | "AI voiceover, script: 'Tired of jittery coffee?...'" |
-| tts_provider | TTS provider to use | "grok" (default), "gemini" |
-| voice | TTS voice name | Grok: "alloy", "onyx", "nova"; Gemini: "Kore", "Puck" |
+| tts_provider | TTS provider to use | "grok" (default), "gemini", "elevenlabs" |
+| voice | TTS voice name | Grok: "alloy", "onyx", "nova"; Gemini: "Kore", "Puck"; ElevenLabs: "Adam", "Rachel" |
 | visual_mode | How visuals are created | "text-only", "ai-generated", "user-provided" |
 | music | Background music | Not yet supported |
 | output_path | Custom output directory | "videos/zenbrew-launch/item-001/" |

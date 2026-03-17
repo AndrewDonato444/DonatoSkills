@@ -470,13 +470,13 @@ This means:
 
 ## Analytics Integration
 
-When the analytics skill (future) checks post performance:
+When the analytics-loop skill checks post performance:
 
-1. Read `projects.json` → get the project's Buffer channels and API key
-2. Query Buffer for post metrics using the correct API key
-3. Store metrics per project
-4. Generate per-project performance reports
-5. Feed per-project learnings back into the content-engine
+1. Read `projects.json` → get the project's scheduling config (Buffer and/or Late.Dev)
+2. Pull post metrics using the configured scheduling backend's API
+3. Store metrics per project in `analytics-loop/data/<project-slug>/`
+4. Score posts, decompose winning patterns by structural variables
+5. Generate per-project briefs that feed back into the content-engine
 
 This ensures Brand A's engagement data never pollutes Brand B's optimization loop.
 
@@ -491,27 +491,30 @@ Before starting work, read `projects.json` and resolve the active project:
 ```
 1. Read projects.json from the DonatoSkills root
 2. Resolve which project to use (see resolution order above)
-3. Set the Buffer API key: read from process.env[project.buffer.api_key_env]
-4. Filter channels to only this project's channels
-5. Read brand context from specs_path or brand_brief
-6. Apply defaults (tone, pillars) as pre-filled answers
+3. Determine scheduling backend: check for project.buffer and/or project.late
+4. Set the API key: read from process.env[project.buffer.api_key_env] or process.env[project.late.api_key_env]
+5. Filter channels/accounts to only this project's entries
+6. Read brand context from specs_path or brand_brief
+7. Apply defaults (tone, pillars) as pre-filled answers
 ```
 
 ### For Content-Engine
 
 - Include `project_id` in every `calendar.json`
-- Use only the project's channels when planning
+- Use only the project's channels/accounts when planning
 - Read brand context from the project's specs_path or brand_brief
 - Pass project_id to orchestrated skill invocations
+- Read `image_gen.default_provider` and `tts.default_provider` to pass correct provider to creation skills
 
 ### For Social-Media
 
-- Only show/use channels from the active project
-- Use the project's Buffer API key (may differ per project)
+- Only show/use channels/accounts from the active project
+- Use the project's scheduling API key (Buffer or Late.Dev — may differ per project)
 - Tag posts with `source: "donatoskills-{project_id}"`
 
 ### For Creation Skills (remotion-video, image-gen, text-writer)
 
 - Read brand context from the project's specs_path (if set)
 - Apply project defaults for tone and content pillars
+- Read provider config (e.g., `tts.default_provider`, `image_gen.default_provider`) for API selection
 - In orchestrated mode, project context comes from the content-engine
