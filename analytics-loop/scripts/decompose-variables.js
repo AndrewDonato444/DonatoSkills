@@ -15,7 +15,6 @@
 
 const fs = require("fs");
 const path = require("path");
-const { glob } = require("fs").promises ? require("fs/promises") : fs;
 
 const VARIABLES = [
   "hook_type",

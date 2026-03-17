@@ -289,6 +289,7 @@ async function generateImage(job: ImageJob): Promise<string> {
     n: 1,
     size: job.size || "1024x1024",
     quality: job.quality || "high",
+    response_format: "b64_json",
   });
 
   const outputDir = path.join(__dirname, "..", "output");

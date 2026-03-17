@@ -56,7 +56,7 @@ Use the remotion-video skill to create a video. ORCHESTRATED MODE -- all paramet
 - Style: [visual style description]
 - Duration: [N] seconds
 - Voiceover: [AI voiceover with script / none]
-- TTS Provider: [grok / gemini] (default: grok)
+- TTS Provider: [grok / gemini / elevenlabs] (default: read from project tts.default_provider)
 - Voice: [voice name if voiceover]
 - Output: videos/[campaign-slug]/item-[NNN]/
 ```
@@ -147,7 +147,8 @@ After scheduling, returns:
 | Parameter | Description | Example |
 |-----------|-------------|---------|
 | text_overlay | Text on the image (keep under 25 chars) | "'Dream Big' in bold white sans-serif, centered" |
-| model | Nano Banana model | "gemini-2.5-flash-image" (default) or "gemini-3-pro-image-preview" |
+| provider | Image generation provider | "gemini" (default) or "openai" — read from project image_gen.default_provider |
+| model | Model name | Gemini: "gemini-2.5-flash-image" (default) / "gemini-3-pro-image-preview"; OpenAI: "gpt-image-1" (default) / "gpt-image-1-mini" |
 | quantity | Number of variations | 1 (default), up to 4 |
 | output_path | Custom output directory | "images/zenbrew-march/" |
 
@@ -156,6 +157,7 @@ After scheduling, returns:
 ```
 Use the image-gen skill to create an image. ORCHESTRATED MODE -- all parameters provided, skip questions and generate directly.
 
+- Provider: [gemini / openai] (read from project image_gen.default_provider)
 - Concept: [what the image shows]
 - Platform: [platform] ([width]x[height], [ratio])
 - Style: [visual style description]

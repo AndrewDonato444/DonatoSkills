@@ -792,7 +792,7 @@ curl -s -X POST https://api.buffer.com \
 curl -s -X POST https://api.buffer.com \
   -H "Authorization: Bearer $BUFFER_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"query": "mutation($input: CreatePostInput!) { createPost(input: $input) { ... on CreatePostPayload { post { id status scheduledAt } } ... on MutationError { message } } }", "variables": {"input": {"channelId": "CHANNEL_ID", "text": "Your post here", "schedulingType": "scheduled", "dueAt": "2026-03-15T14:00:00Z"}}}'
+  -d '{"query": "mutation { createPost(input: { channelId: \"CHANNEL_ID\", text: \"Your post here\", schedulingType: automatic, mode: customScheduled, dueAt: \"2026-03-15T14:00:00Z\" }) { ... on CreatePostPayload { post { id status scheduledAt } } ... on MutationError { message } } }"}'
 ```
 
 ### Late.Dev (REST)

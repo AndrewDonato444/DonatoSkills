@@ -48,9 +48,16 @@
         }
       },
       "image_gen": {
-        "provider": "gemini",
-        "api_key_env": "GEMINI_API_KEY",
-        "default_model": "gemini-2.5-flash-image"
+        "providers": ["gemini", "openai"],
+        "default_provider": "gemini",
+        "gemini": {
+          "api_key_env": "GEMINI_API_KEY",
+          "default_model": "gemini-2.5-flash-image"
+        },
+        "openai": {
+          "api_key_env": "OPENAI_API_KEY",
+          "default_model": "gpt-image-1"
+        }
       },
       "analytics_loop": {
         "collection_window_hours": 48,

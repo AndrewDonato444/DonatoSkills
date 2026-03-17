@@ -60,8 +60,10 @@ All keys should be in the project `.env` / `.env.local` file. The **env var name
 |-----|---------|---------|---------------------|
 | `BUFFER_API_KEY` | Buffer | Social media scheduling (GraphQL) | `buffer.api_key_env` |
 | `LATE_API_KEY` | Late.Dev | Social media scheduling (REST) | `late.api_key_env` |
-| `GROK_API_KEY` | Grok (xAI) | Video voiceover TTS (default provider) | (global) |
-| `GEMINI_API_KEY` | Google Gemini | Image generation + Gemini TTS (alternative) | (global) |
+| `GROK_API_KEY` | Grok (xAI) | Video voiceover TTS (default provider) | `tts.grok.api_key_env` |
+| `GEMINI_API_KEY` | Google Gemini | Image generation (default) + Gemini TTS (alternative) | `tts.gemini.api_key_env` / `image_gen.gemini.api_key_env` |
+| `OPENAI_API_KEY` | OpenAI | Image generation (alternative) | `image_gen.openai.api_key_env` |
+| `ELEVENLABS_API_KEY` | ElevenLabs | Premium TTS provider (optional) | `tts.elevenlabs.api_key_env` |
 | `CLOUDINARY_CLOUD_NAME` | Cloudinary | Media hosting | `cloudinary.cloud_name_env` |
 | `CLOUDINARY_API_KEY` | Cloudinary | Media hosting | `cloudinary.api_key_env` |
 | `CLOUDINARY_API_SECRET` | Cloudinary | Media hosting | `cloudinary.api_secret_env` |
@@ -232,7 +234,7 @@ When invoking `remotion-video`, provide ALL of these in your prompt so it skips 
 - Visual mode: text-only | ai-generated | user-assets
 - Visual style (colors, vibe, animation style)
 - Duration
-- Voiceover: yes/no, and if yes: the script, TTS provider (grok or gemini), and voice name
+- Voiceover: yes/no, and if yes: the script, TTS provider (grok, gemini, or elevenlabs), and voice name
 - Output path
 
 Example orchestrated invocation:
@@ -433,8 +435,8 @@ Available content creation skills and their interfaces:
 
 | Skill | Produces | Required Params | Optional Params |
 |-------|----------|-----------------|-----------------|
-| `remotion-video` | `.mp4` video | platform, message, visual_mode, style, duration | voiceover (script + voice), tts_provider (grok/gemini), music, template variables |
-| `image-gen` | `.png` image | concept, platform, style | text overlay, model (flash/pro), quantity |
+| `remotion-video` | `.mp4` video | platform, message, visual_mode, style, duration | voiceover (script + voice), tts_provider (grok/gemini/elevenlabs), music, template variables |
+| `image-gen` | `.png` image | concept, platform, style | text overlay, provider (gemini/openai), model (gemini: flash/pro, openai: gpt-image-1/gpt-image-1-mini), quantity |
 | `text-writer` | Text post (saved to file) | platform, topic, tone | format, CTA, hashtags |
 | `social-media` | Scheduled post | channel_id, text, timing | assets, hashtags, metadata |
 | `analytics-loop` | `briefs.json` | project_id | date_range, platform_filter |
