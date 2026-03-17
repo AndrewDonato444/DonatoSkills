@@ -126,7 +126,8 @@ Before asking the user anything, silently read whatever project context exists. 
 5. **`shared-references/platform-specs.md`** — Image dimensions, aspect ratios, file size limits, and supported formats per platform. Use this to set the correct output dimensions.
 6. **`shared-references/caption-writing.md`** — Caption formulas per platform. When the image will be posted with a caption, the text overlay and caption should complement each other.
 7. **`shared-references/content-pillars.md`** — Content pillar frameworks. When creating images as part of a content strategy, align the visual to the appropriate pillar.
-8. **Previous conversation** — if the user just described what they want, you already know it.
+8. **`shared-references/provider-resilience.md`** — Retry, fallback, and timeout patterns for provider API calls. Read this when scaffolding generation scripts to ensure resilience is included. _(If this file does not yet exist, the patterns are documented inline in the Generation Script templates below.)_
+9. **Previous conversation** — if the user just described what they want, you already know it.
 
 **Use everything you find** to pre-fill answers below.
 
@@ -218,6 +219,44 @@ import * as path from "path";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
+// --- Resilience: Error classification ---
+const RETRYABLE_CODES = new Set([429, 500, 503]);
+const NON_RETRYABLE_CODES = new Set([400, 401, 402, 403]);
+
+function isRetryable(err: any): boolean {
+  if (err.name === "AbortError") return true;
+  if (err.code === "ECONNRESET" || err.code === "ETIMEDOUT") return true;
+  const status = err.status ?? err.statusCode ?? err.response?.status;
+  if (status && RETRYABLE_CODES.has(status)) return true;
+  if (status && NON_RETRYABLE_CODES.has(status)) return false;
+  if (err.message?.includes("content policy")) return false;
+  return true; // unknown errors default to retryable
+}
+
+// --- Resilience: Retry with exponential backoff ---
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  { retries = 3, baseDelay = 5000, label = "" } = {}
+): Promise<T> {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      const status = err.status ?? err.statusCode ?? err.response?.status ?? "unknown";
+      if (!isRetryable(err) || attempt === retries) {
+        throw Object.assign(err, { _provider: "gemini", _attempts: attempt });
+      }
+      const delay = baseDelay * Math.pow(3, attempt - 1); // 5s, 15s, 45s
+      console.log(`[Retry ${attempt}/${retries}] ${label} — ${err.message ?? status} — waiting ${delay / 1000}s`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw new Error("withRetry: unreachable");
+}
+
+// --- Resilience: Timeout via AbortController ---
+const TIMEOUT_MS = 60_000;
+
 interface ImageJob {
   name: string;
   prompt: string;
@@ -226,28 +265,48 @@ interface ImageJob {
 }
 
 async function generateImage(job: ImageJob): Promise<string> {
-  const model = job.model || "gemini-2.5-flash-image";
-
-  const response = await ai.models.generateContent({
-    model,
-    contents: job.prompt,
-    config: {
-      responseModalities: ["TEXT", "IMAGE"],
-      imageConfig: {
-        aspectRatio: job.aspectRatio,
-      },
-    },
-  });
-
   const outputDir = path.join(__dirname, "..", "output");
   if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 
-  for (const part of response.candidates![0].content!.parts!) {
+  // --- Resilience: Idempotency check ---
+  const outputPath = path.join(outputDir, `${job.name}.png`);
+  if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0) {
+    console.log(`Skipping ${job.name} (already exists, ${fs.statSync(outputPath).size} bytes)`);
+    return outputPath;
+  }
+
+  const model = job.model || "gemini-2.5-flash-image";
+
+  const result = await withRetry(
+    async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+      try {
+        const response = await ai.models.generateContent({
+          model,
+          contents: job.prompt,
+          config: {
+            responseModalities: ["TEXT", "IMAGE"],
+            imageConfig: {
+              aspectRatio: job.aspectRatio,
+            },
+            abortSignal: controller.signal,
+          },
+        });
+        return response;
+      } finally {
+        clearTimeout(timeout);
+      }
+    },
+    { retries: 3, label: job.name }
+  );
+
+  for (const part of result.candidates![0].content!.parts!) {
     if (part.inlineData) {
       const buffer = Buffer.from(part.inlineData.data!, "base64");
-      const outputPath = path.join(outputDir, `${job.name}.png`);
       fs.writeFileSync(outputPath, buffer);
       console.log(`Generated: ${outputPath} (${buffer.length} bytes)`);
+      console.log("IMAGE_COMPLETE: " + outputPath + " | Provider: gemini");
       return outputPath;
     }
   }
@@ -262,7 +321,12 @@ const job: ImageJob = {
   aspectRatio: "1:1",
 };
 
-generateImage(job).catch(console.error);
+generateImage(job)
+  .catch((err) => {
+    const providers = err._provider ? [err._provider] : ["gemini"];
+    console.log("IMAGE_FAILED: " + job.name + " | Error: " + (err.message || String(err)) + " | Providers tried: " + providers.join(", "));
+    process.exitCode = 1;
+  });
 ```
 
 ### Generation Script (OpenAI)
@@ -274,6 +338,44 @@ import * as path from "path";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
+// --- Resilience: Error classification ---
+const RETRYABLE_CODES = new Set([429, 500, 503]);
+const NON_RETRYABLE_CODES = new Set([400, 401, 402, 403]);
+
+function isRetryable(err: any): boolean {
+  if (err.name === "AbortError") return true;
+  if (err.code === "ECONNRESET" || err.code === "ETIMEDOUT") return true;
+  const status = err.status ?? err.statusCode ?? err.response?.status;
+  if (status && RETRYABLE_CODES.has(status)) return true;
+  if (status && NON_RETRYABLE_CODES.has(status)) return false;
+  if (err.message?.includes("content policy")) return false;
+  return true; // unknown errors default to retryable
+}
+
+// --- Resilience: Retry with exponential backoff ---
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  { retries = 3, baseDelay = 5000, label = "" } = {}
+): Promise<T> {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      const status = err.status ?? err.statusCode ?? err.response?.status ?? "unknown";
+      if (!isRetryable(err) || attempt === retries) {
+        throw Object.assign(err, { _provider: "openai", _attempts: attempt });
+      }
+      const delay = baseDelay * Math.pow(3, attempt - 1); // 5s, 15s, 45s
+      console.log(`[Retry ${attempt}/${retries}] ${label} — ${err.message ?? status} — waiting ${delay / 1000}s`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw new Error("withRetry: unreachable");
+}
+
+// --- Resilience: Timeout via AbortController ---
+const TIMEOUT_MS = 60_000;
+
 interface ImageJob {
   name: string;
   prompt: string;
@@ -284,23 +386,42 @@ interface ImageJob {
 }
 
 async function generateImage(job: ImageJob): Promise<string> {
-  const response = await openai.images.generate({
-    model: job.model || "gpt-image-1",
-    prompt: job.prompt,
-    n: 1,
-    size: job.size || "1024x1024",
-    quality: job.quality || "high",
-    background: job.background || "auto",
-    response_format: "b64_json",
-  });
-
   const outputDir = path.join(__dirname, "..", "output");
   fs.mkdirSync(outputDir, { recursive: true });
 
-  const buffer = Buffer.from(response.data[0].b64_json!, "base64");
+  // --- Resilience: Idempotency check ---
   const outputPath = path.join(outputDir, `${job.name}.png`);
+  if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0) {
+    console.log(`Skipping ${job.name} (already exists, ${fs.statSync(outputPath).size} bytes)`);
+    return outputPath;
+  }
+
+  const result = await withRetry(
+    async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+      try {
+        const response = await openai.images.generate({
+          model: job.model || "gpt-image-1",
+          prompt: job.prompt,
+          n: 1,
+          size: job.size || "1024x1024",
+          quality: job.quality || "high",
+          background: job.background || "auto",
+          response_format: "b64_json",
+        });
+        return response;
+      } finally {
+        clearTimeout(timeout);
+      }
+    },
+    { retries: 3, label: job.name }
+  );
+
+  const buffer = Buffer.from(result.data[0].b64_json!, "base64");
   fs.writeFileSync(outputPath, buffer);
   console.log(`Generated: ${outputPath} (${buffer.length} bytes)`);
+  console.log("IMAGE_COMPLETE: " + outputPath + " | Provider: openai");
   return outputPath;
 }
 
@@ -311,10 +432,116 @@ const job: ImageJob = {
   size: "1024x1024",
 };
 
-generateImage(job).catch(console.error);
+generateImage(job)
+  .catch((err) => {
+    const providers = err._provider ? [err._provider] : ["openai"];
+    console.log("IMAGE_FAILED: " + job.name + " | Error: " + (err.message || String(err)) + " | Providers tried: " + providers.join(", "));
+    process.exitCode = 1;
+  });
 ```
 
 **Which script to scaffold?** Read `image_gen.default_provider` from `projects.json`. If `"openai"`, scaffold the OpenAI script. If `"gemini"` (or not set), scaffold the Gemini script. Include the `openai` or `@google/genai` dependency in `package.json` accordingly.
+
+### Provider Fallback
+
+When scaffolding a generation script, read `image_gen.providers` from `projects.json` to determine whether to include fallback logic:
+
+**Single provider** (e.g., `"providers": ["gemini"]`): Scaffold that provider's script template as shown above. The `withRetry` handles transient errors, but there is no fallback — if retries are exhausted, the job fails.
+
+**Two providers** (e.g., `"providers": ["gemini", "openai"]`): Scaffold the `default_provider` script template, then add a `withFallback` function that tries the other provider when the primary exhausts retries or returns a non-retryable error. Both providers need their npm dependency in `package.json`.
+
+Add this fallback function to the generated script when 2 providers are configured:
+
+```typescript
+// --- Resilience: Provider fallback ---
+// Adaptation table: Gemini aspect ratios <-> OpenAI sizes
+const GEMINI_TO_OPENAI_SIZE: Record<string, string> = {
+  "1:1": "1024x1024",
+  "16:9": "1536x1024",
+  "2:3": "1024x1536",
+  "3:2": "1536x1024",
+  "4:3": "1024x1024",  // closest match
+  "21:9": "1536x1024", // closest match
+};
+
+const OPENAI_SIZE_TO_GEMINI: Record<string, string> = {
+  "1024x1024": "1:1",
+  "1536x1024": "16:9",
+  "1024x1536": "2:3",
+  "auto": "1:1",
+};
+
+async function generateImageWithFallback(job: ImageJob): Promise<string> {
+  const outputDir = path.join(__dirname, "..", "output");
+  fs.mkdirSync(outputDir, { recursive: true });
+  const outputPath = path.join(outputDir, `${job.name}.png`);
+
+  // Idempotency check
+  if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0) {
+    console.log(`Skipping ${job.name} (already exists, ${fs.statSync(outputPath).size} bytes)`);
+    return outputPath;
+  }
+
+  const providersTried: string[] = [];
+  const errors: string[] = [];
+
+  // Try primary provider
+  try {
+    providersTried.push("PRIMARY_PROVIDER");
+    return await generateImage(job); // uses the primary provider template
+  } catch (primaryErr: any) {
+    const errMsg = primaryErr.message || String(primaryErr);
+    errors.push(`PRIMARY_PROVIDER: ${errMsg}`);
+    console.log(`PRIMARY_PROVIDER failed after ${primaryErr._attempts || "?"} attempts. Falling back to FALLBACK_PROVIDER`);
+  }
+
+  // Try fallback provider
+  try {
+    providersTried.push("FALLBACK_PROVIDER");
+    // Adapt parameters for the fallback provider
+    // (agent fills in the correct adaptation based on primary/fallback direction)
+    const fallbackResult = await generateImageFallback(job, outputPath);
+    console.log("IMAGE_COMPLETE: " + outputPath + " | Provider: FALLBACK_PROVIDER (fallback)");
+    return fallbackResult;
+  } catch (fallbackErr: any) {
+    const errMsg = fallbackErr.message || String(fallbackErr);
+    errors.push(`FALLBACK_PROVIDER: ${errMsg}`);
+  }
+
+  // All providers exhausted
+  const errorSummary = errors.join("; ");
+  console.log("IMAGE_FAILED: " + job.name + " | Error: All providers exhausted (" + errorSummary + ") | Providers tried: " + providersTried.join(", "));
+  throw new Error(`All providers exhausted for ${job.name}`);
+}
+```
+
+The agent must replace `PRIMARY_PROVIDER` and `FALLBACK_PROVIDER` with the actual provider names from `projects.json`, and implement `generateImageFallback()` using the other provider's API with the parameter adaptation table above.
+
+#### Provider Adaptation Table
+
+When falling back between providers, adapt job parameters:
+
+| Direction | Aspect Ratio / Size | Model |
+|-----------|-------------------|-------|
+| Gemini -> OpenAI | `"1:1"` -> `"1024x1024"`, `"16:9"` -> `"1536x1024"`, `"2:3"` -> `"1024x1536"` | Use `image_gen.openai.default_model` from projects.json |
+| OpenAI -> Gemini | `"1024x1024"` -> `"1:1"`, `"1536x1024"` -> `"16:9"`, `"1024x1536"` -> `"2:3"` | Use `image_gen.gemini.default_model` from projects.json |
+
+### Signal Output
+
+Both templates emit structured signals for the orchestrator:
+
+**On success:**
+```
+IMAGE_COMPLETE: images/job-name/output/slide-01.png | Provider: gemini
+IMAGE_COMPLETE: images/job-name/output/slide-02.png | Provider: openai (fallback)
+```
+
+**On failure (all providers exhausted):**
+```
+IMAGE_FAILED: slide-03 | Error: All providers exhausted (gemini: 429, openai: 503) | Providers tried: gemini, openai
+```
+
+These signals are already embedded in the templates above. The orchestrator (content-engine) can parse them to track which images succeeded, which failed, and which provider served each.
 
 ### Available Aspect Ratios
 
@@ -542,6 +769,60 @@ for (const job of jobs) {
 ```
 
 **OpenAI rate limits**: ~5 images/minute (Tier 1). Add a 3-second delay between generations.
+
+### Batch Handling with Partial-Success
+
+For overnight automation and orchestrated batches, use this pattern instead of the simple `for` loop above. It runs all jobs, tracks successes and failures, and reports a summary — a single failed job does not crash the batch.
+
+```typescript
+interface BatchResult {
+  name: string;
+  status: "success" | "failed";
+  provider?: string;
+  outputPath?: string;
+  error?: string;
+}
+
+async function runBatch(jobs: ImageJob[]): Promise<void> {
+  const results: BatchResult[] = [];
+  let fallbackCount = 0;
+
+  for (const job of jobs) {
+    try {
+      // Use generateImageWithFallback if 2 providers are configured,
+      // or generateImage if only 1 provider is available.
+      const outputPath = await generateImageWithFallback(job);
+      results.push({ name: job.name, status: "success", outputPath });
+    } catch (err: any) {
+      results.push({ name: job.name, status: "failed", error: err.message });
+    }
+    // Rate limit pause between jobs
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+
+  // --- Batch summary ---
+  const succeeded = results.filter((r) => r.status === "success");
+  const failed = results.filter((r) => r.status === "failed");
+
+  console.log("\n=== BATCH SUMMARY ===");
+  console.log(`${succeeded.length}/${results.length} images generated.` +
+    (fallbackCount > 0 ? ` (${fallbackCount} on fallback).` : "") +
+    (failed.length > 0 ? ` ${failed.length} failed: ${failed.map((f) => f.name).join(", ")}` : ""));
+
+  for (const f of failed) {
+    console.log(`  FAILED: ${f.name} — ${f.error}`);
+  }
+
+  // Exit code 0 even on partial success (orchestrator reads signals)
+  process.exitCode = 0;
+}
+```
+
+**Key behaviors:**
+- Each job is isolated — a failure in job 3 does not prevent jobs 4-7 from running
+- Idempotency means you can re-run the script and it skips already-completed jobs
+- The batch summary prints at the end so the orchestrator (or human) can see what happened
+- Exit code is 0 for partial success — the orchestrator parses `IMAGE_FAILED` signals to decide what to do
 
 ---
 

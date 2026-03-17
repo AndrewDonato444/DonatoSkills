@@ -157,6 +157,16 @@ For each selected provider:
 
 Set `default_provider` to the user's first choice (or whichever they said is primary). Set `providers` array to all selected providers in preference order.
 
+> **Provider Fallback**: DonatoSkills supports automatic provider fallback. If your primary provider is rate-limited or down, the system automatically tries the next provider in your fallback chain. The `providers` array order in `projects.json` defines the fallback priority. See `shared-references/provider-resilience.md` for full details.
+
+**Single-provider warning:** If only 1 TTS provider was configured, display:
+
+```
+⚠️ Single provider configured for TTS ({provider}). If this provider is rate-limited or experiencing downtime, your automated content pipeline will stop. We recommend configuring at least 2 providers for fallback.
+```
+
+Then offer: "Would you like to add a second TTS provider now for resilience?"
+
 ### Step 5: Image Generation Setup
 
 > "Which image generation provider(s) do you want for AI backgrounds and images?
@@ -186,6 +196,43 @@ For each selected provider:
 5. Record `image_gen.openai.api_key_env`, `image_gen.openai.default_model`
 
 Set `default_provider` to the user's first choice. Set `provider` and `api_key_env` and `default_model` to match the default provider (for backward compatibility). If both are selected, add `providers` array.
+
+**Single-provider warning:** If only 1 image-gen provider was configured, display:
+
+```
+⚠️ Single provider configured for image generation ({provider}). If this provider is rate-limited or experiencing downtime, your automated content pipeline will stop. We recommend configuring at least 2 providers for fallback.
+```
+
+Then offer: "Would you like to add a second image generation provider now for resilience?"
+
+### Step 5b: Provider Fallback Summary
+
+After both TTS and image-gen providers are configured, display a fallback chain summary. For each capability, show the chain with a checkmark or warning depending on provider count.
+
+**Multi-provider example:**
+
+```
+✅ TTS fallback chain: grok → gemini → elevenlabs (3 providers)
+✅ Image fallback chain: gemini → openai (2 providers)
+Your automated loops will survive individual provider outages.
+```
+
+**Mixed example (single TTS provider, multiple image-gen):**
+
+```
+⚠️ TTS: grok only (no fallback — add gemini or elevenlabs for resilience)
+✅ Image fallback chain: gemini → openai (2 providers)
+```
+
+**Both single-provider:**
+
+```
+⚠️ TTS: elevenlabs only (no fallback — add grok or gemini for resilience)
+⚠️ Image generation: gemini only (no fallback — add openai for resilience)
+Consider adding fallback providers before running overnight automation.
+```
+
+The chain order shown matches the `providers` array order in `projects.json`, which is the fallback priority. See `shared-references/provider-resilience.md` for full resilience documentation.
 
 ### Step 6: Cloudinary Setup
 
