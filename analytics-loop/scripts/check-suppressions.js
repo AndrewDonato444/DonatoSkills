@@ -133,6 +133,9 @@ function generatePairs(variables) {
  * Get historical data for a specific variable-value combination across cycles.
  * Scans all dated subdirectories for scored-posts.json, extracts posts matching
  * the combination, and computes cross-cycle statistics.
+ *
+ * Note: This scan includes the current cycle's directory (consistent with
+ * getValueHistory). MIN_CYCLES=3 effectively means 2 prior cycles + current.
  */
 function getComboHistory(projectDataDir, var1, value1, var2, value2) {
   if (!fs.existsSync(projectDataDir)) return { cycles: 0, avg: 0, total: 0 };
@@ -160,7 +163,9 @@ function getComboHistory(projectDataDir, var1, value1, var2, value2) {
         const vars = post.variables;
         if (!vars) continue;
         if (vars[var1] === value1 && vars[var2] === value2) {
-          totalScore += post.score.engagementDensity;
+          const density = post.score?.engagementDensity;
+          if (typeof density !== "number") continue;
+          totalScore += density;
           totalCount++;
           cycleCount++;
         }
